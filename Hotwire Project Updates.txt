@@ -1,0 +1,75 @@
+C# script summary: 
+
+The script runs inside a Grasshopper C# Script component.
+The script accepts Rhino geometry as its main input.
+It converts the geometry into ordered hot-wire positions.
+Each hot-wire position is represented by a finite line.
+Each line connects synchronized points on opposite sides of the geometry.
+The wire positions follow the cutting direction in sequence.
+The number of wire positions is controlled by the sampling count.
+Additional wire length can be added using the extension input.
+The wire endpoint order can be reversed using Flip.
+
+Toolpath calculation :
+
+The script identifies or generates two synchronized endpoint rails.
+Both rails are sampled using normalized curve length.
+Matching points are taken from both rails.
+Each matching point pair creates one hot-wire line.
+The midpoint of every wire line is calculated.
+The ordered midpoints create the central robot path.
+Invalid or zero-length wire positions are removed.
+Wire orientation continuity is maintained between stations.
+
+Plane generation :
+
+One robot plane is created for every valid wire position.
+The plane origin is placed at the wire midpoint.
+The plane X-axis points from endpoint A to endpoint B.
+The plane Y-axis follows the cutting travel direction.
+The travel vector is projected perpendicular to the wire.
+The plane Z-axis is calculated as X × Y.
+Sudden plane flips are reduced by checking adjacent Z-axes.
+The planes are ordered from the first cutting station to the last.
+
+Ruled-surface generation :
+
+The first endpoints create RailA.
+The second endpoints create RailB.
+A straight loft is created between the two rails.
+The straight loft represents the surface swept by the wire.
+This output is the resulting ruled surface.
+The ruled surface can be compared with the original geometry.
+Non-ruled geometry is represented as an approximation.
+
+Main outputs :
+
+Planes contains the ordered robot target planes.
+WireLines contains the physical wire positions.
+Ruled contains the generated ruled surface.
+RailA contains the first synchronized endpoint path.
+RailB contains the second synchronized endpoint path.
+MidPath contains the wire-midpoint travel path.
+Report contains calculation details and warnings.
+
+Grasshopper and KUKA|prc use :
+
+The C# source is embedded inside the Grasshopper component.
+No Python code is used.
+Standard RhinoCommon geometry methods perform the calculations.
+Standard Grasshopper parameters provide the inputs and outputs.
+Planes can be connected to downstream KUKA|prc components.
+KUKA|prc remains responsible for robot kinematics and simulation.
+Robot tool, base, speed, interpolation, and configuration must be set separately.
+
+Scope and limitations :
+
+The script generates geometry and target planes.
+It does not calculate hot-wire kerf compensation.
+It does not calculate cutting temperature.
+It does not select cutting speed.
+It does not test robot reachability.
+It does not detect robot singularities.
+It does not perform collision checking.
+It does not verify the physical wire length.
+Final paths must be checked in KUKA|prc before fabrication.

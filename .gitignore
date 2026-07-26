@@ -1,0 +1,21 @@
+# Codex/Rhino build and inspection helpers
+_codex_hotwire_demo_build/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Temporary validation probes
+remote-probe.log
+*Simulation_Error.log
+
+# Rhino and Grasshopper temporary/backup files
+*.3dmbak
+*.rhl
+*.gh.bak
+*.autosave
+
+# Windows metadata
+Thumbs.db
+Desktop.ini
+
