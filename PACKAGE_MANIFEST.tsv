@@ -1,0 +1,6 @@
+Design	RhinoFile	GrasshopperFile	QAImage	Motion	VerifiedTargets
+01_Ruled_Wave	01_Ruled_Wave/01_Ruled_Wave.3dm	01_Ruled_Wave/01_Ruled_Wave.gh	01_Ruled_Wave/01_Ruled_Wave_QA.png	LIN	33
+02_Helical_Flute	02_Helical_Flute/02_Helical_Flute.3dm	02_Helical_Flute/02_Helical_Flute.gh	02_Helical_Flute/02_Helical_Flute_QA.png	SPL	65 planes
+03_Layered_Wave	03_Layered_Wave/03_Layered_Wave.3dm	03_Layered_Wave/03_Layered_Wave.gh	03_Layered_Wave/03_Layered_Wave_QA.png	LIN + Cartesian Offset	93
+04_Radial_Fan	04_Radial_Fan/04_Radial_Fan.3dm	04_Radial_Fan/04_Radial_Fan.gh	04_Radial_Fan/04_Radial_Fan_QA.png	LIN + Cartesian Offset	77
+05_Adaptive_Acoustic	05_Adaptive_Acoustic/05_Adaptive_Acoustic.3dm	05_Adaptive_Acoustic/05_Adaptive_Acoustic.gh	05_Adaptive_Acoustic/05_Adaptive_Acoustic_QA.png	LIN + Reduce Toolpath	121
