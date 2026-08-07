@@ -1,0 +1,310 @@
+﻿ASU Robotics Lab - Tirth - FL-01 / TF-09 / simulator
+Automated verification run
+Date        : 2026-08-03
+Environment : Rhino 8.33.26188.13001, headless, RhinoCommon + Grasshopper loaded
+Method      : the three components' helper classes compiled against the real Rhino 8
+              libraries and executed against real geometry. This is the actual output.
+
+============================================================================
+Rhino 8.33.26188.13001
+
+================ FL-01 mesh -> planes ================
+---- automatic seam ----
+
+=== ORIENTATION SELF-TEST ===
+trials                 8 random rotations + translations
+planes compared        310 per trial
+slice-axis reversals   0 of 8
+plane-count mismatches 0 of 8
+worst origin drift     89.153758458 model units   (allowed 0.000275341)
+worst rotation drift   169.574650999 deg   (allowed 0.010000000)
+  ... ignoring where each loop starts:
+worst path drift       1.254287 model units   (10.8% of one 11.66 step, allowed 25%)
+worst path rotation    2.547266 deg   (allowed 5)
+RESULT: PASS (GEOMETRY) - SEAM NOT CANONICAL
+
+Every loop is the same loop, in the same place, cut the same way round.
+What moved is only WHERE ALONG EACH LOOP THE TOOL STARTS.
+
+A smooth closed loop has no canonical starting point - there is no corner to
+call the beginning. The automatic choice reads the loop's own outline, which
+works well when the section has a clear long direction and becomes a coin toss
+when it is close to symmetric, as an ellipse or a circle is.
+
+The residual above is the chord error between two polygons drawn through the
+same loop at different phases. Raise samples and it falls away.
+
+IF THE START POINT MATTERS - and it does if you are re-cutting a part to match
+an earlier run - supply seamGuide. Every loop then starts at the point nearest
+to it and the whole result becomes exactly reproducible.
+
+  PASS  FL01 auto seam: the path is the same path in every orientation
+  path drift  1.2543 at 28 samples   ->   0.1392 at 112 samples   (ratio 9x)
+  PASS  FL01 the residual is chord error: 4x the samples cuts it by at least 4x
+---- seam pinned with seamGuide ----
+
+=== ORIENTATION SELF-TEST ===
+trials                 8 random rotations + translations
+planes compared        310 per trial
+slice-axis reversals   0 of 8
+plane-count mismatches 0 of 8
+worst origin drift     0.000001322 model units   (allowed 0.000275341)
+worst rotation drift   0.001230423 deg   (allowed 0.010000000)
+  ... ignoring where each loop starts:
+worst path drift       0.000000 model units   (0% of one 11.66 step, allowed 25%)
+worst path rotation    0.000514 deg   (allowed 5)
+RESULT: PASS - the toolpath is identical in every orientation, to floating point.
+
+  PASS  FL01 pinned seam: self-test is an EXACT pass
+---- part symmetric about its long axis ----
+MESH  1562 vertices, 1600 faces, closed solid
+PART FRAME  origin (9.514, 3.015, 6.809)
+  long axis  (-0.7875, -0.2496, -0.5636)   spread 3705.839
+  mid  axis  (-0.3691, 0.9232, 0.1069)   spread 857.871
+  short axis (0.4936, 0.2922, -0.8191)   spread 413.145
+SLICE AXIS  (-0.7875, -0.2496, -0.5636)   (auto: model's longest direction)
+EXTENT along axis 240 over 10 slice(s)
+POINTS 310 in 10 branch(es)
+STEP   min 2.68  max 9.695
+TURN   worst frame-to-frame rotation 26.69 deg
+STATUS OK: 310 planes, 10 branches, worst turn 26.7 deg.
+
+
+=== ORIENTATION SELF-TEST ===
+trials                 8 random rotations + translations
+planes compared        310 per trial
+slice-axis reversals   0 of 8
+plane-count mismatches 0 of 8
+worst origin drift     104.496592240 model units   (allowed 0.000268082)
+worst rotation drift   178.623323072 deg   (allowed 0.010000000)
+  ... ignoring where each loop starts:
+worst path drift       0.558897 model units   (5.8% of one 9.7 step, allowed 25%)
+worst path rotation    1.588500 deg   (allowed 5)
+RESULT: PASS (GEOMETRY) - SEAM NOT CANONICAL
+
+Every loop is the same loop, in the same place, cut the same way round.
+What moved is only WHERE ALONG EACH LOOP THE TOOL STARTS.
+
+A smooth closed loop has no canonical starting point - there is no corner to
+call the beginning. The automatic choice reads the loop's own outline, which
+works well when the section has a clear long direction and becomes a coin toss
+when it is close to symmetric, as an ellipse or a circle is.
+
+The residual above is the chord error between two polygons drawn through the
+same loop at different phases. Raise samples and it falls away.
+
+IF THE START POINT MATTERS - and it does if you are re-cutting a part to match
+an earlier run - supply seamGuide. Every loop then starts at the point nearest
+to it and the whole result becomes exactly reproducible.
+
+  PASS  FL01 status is OK
+  PASS  FL01 produced planes (310)
+  PASS  FL01 symmetric part: path is still identical in every orientation
+  PASS  FL01 symmetric part: the seam ambiguity is named, not hidden
+  PASS  FL01 rollMode moves no point (worst 7.1e-15)
+  PASS  FL01 tiltDeg moves no point on the work (worst 0.0e+0)
+  PASS  FL01 tiltDeg DOES move the lead-in/out points, as intended (3.19 mm)
+  PASS  FL01 warns that a symmetric box has no first end
+  PASS  FL01 self-test reports axis reversals as a named diagnosis
+  (pinned-axis box self-test: skipped by design - axisMode 5 is world-locked)
+  PASS  FL01 warns that a sphere has no unique long axis
+
+================ TF-09 pen switching ================
+STROKES  14 usable of 14 supplied
+PENS     3 distinct, magazine has 3 slot(s)
+ORDER    air travel 2.283 m -> 1.501 m  (34.3% saved)
+SWAPS    3 pen change(s) (the floor is 3 for 3 pens)
+DRAW     1.302 m on the paper
+TRAVEL   3.141 m in the air
+TIME     1 min 54 s estimated, including 3 swap(s) at 25 s
+STATUS OK WITH WARNINGS: 73 targets, 3 swap(s), 1 min 54 s
+
+
+=== ORIENTATION SELF-TEST ===
+trials                    8 random rotations of the whole cell
+targets compared          73 per trial
+stroke-order mismatches   0 of 8
+target-count mismatches   0 of 8
+worst origin drift        0.000000000 mm   (allowed 0.000433448)
+worst rotation drift      0.000000000 deg   (allowed 0.001000000)
+worst KUKA A/B/C roundtrip 0.000000000 deg   (allowed 0.001000000)
+RESULT: PASS - the same job comes out whichever way the paper and magazine are turned.
+
+  PASS  TF09 status is OK
+  PASS  TF09 uses minimum swaps for 3 pens (got 3)
+  PASS  TF09 orientation self-test PASS
+  PASS  TF09 KRL calls PEN_ENSURE
+  PASS  TF09 dry run written into the KRL
+  PASS  TF09 KRL emits LIN frame literals
+  PASS  TF09 keeps every stroke
+  PASS  TF09 uses each stroke exactly once
+  unoptimised air travel 6.231 m   ->   optimised 3.141 m
+  PASS  TF09 optimisation does not make travel worse
+  PASS  TF09 grouping does not increase swaps
+  PASS  TF09 resume at index 7 acquires pen 2 before the first LIN
+  PASS  TF09 KUKA A/B/C round trip exact to 1e-6 rad (worst 2.1e-8)
+
+================ simulator ================
+SEGMENTS   39
+PROCESS    0.89 m in 17.8 s
+AIR        0.032 m in 0.13 s
+CYCLE      17.93 s
+NOW        8.96 s  segment 19 of 39  process move (on the work)
+TURN       worst 178.2 deg on one move (segment 4)
+TURN RATE  worst 7.439 deg/mm   limit 2
+HOTSPOTS   12 segment(s) turn faster than the limit:
+           1, 4, 8, 11, 14, 18, 20, 24, 28, 30, 34, 38
+STATUS     OK WITH WARNINGS: 12 segment(s) rotate faster than 2 deg/mm. Cycle 17.93 s.
+
+  PASS  SIM status is OK
+  PASS  SIM produced a cycle time
+  PASS  SIM built a tool mesh
+  PASS  SIM t=0 sits on the first target
+  PASS  SIM t=1 sits on the last target
+  PASS  SIM halving the feed doubles the process time
+  PASS  SIM interpolation exact at both ends
+
+
+ALL CHECKS PASSED
+
+
+============================================================================
+SECOND RUN - 2026-08-04
+============================================================================
+Reason      : TF-09 was checked against the drawing end-effector spec
+              (end-effectors/01-drawing/README.md) and did not implement four
+              things it names. They were added; this is the run that checks them.
+Environment : Rhino 8.33.26188.13001, headless, hosted in PowerShell
+              (a standalone exe is blocked by Application Control on this
+              machine, so the test assembly is compiled and run in-process)
+Method      : as above - the real helper class, real Rhino geometry, real output.
+
+WHAT CHANGED
+  1. Z press offset (3 mm). Was absent entirely. The pen went exactly to the
+     drawing plane, so any error in that plane showed as a missing line rather
+     than a light one - which is the whole reason the holder is spring loaded.
+  2. Defaults did not match the spec: draw 50 -> 100 mm/s, air 250 -> 500 mm/s,
+     lift 20 -> 30 mm.
+  3. BASE handling. PEN_SET_TOOL hard-coded $BASE = BASE_DATA[1], so a job set
+     up on BASE[2] for a large sheet silently reverted to the small worktable
+     base after the first pen change. The paper base and the magazine base are
+     now separate variables, and every $BASE write goes through PEN_USE_BASE().
+  4. Curved-surface drawing. drawGeo supplied the tool NORMAL but not the tool
+     POSITION, so a flat drawing over a scanned sheet kept its flat coordinates
+     and the pen would have drawn in mid-air. Strokes are now projected onto
+     drawGeo.
+
+Rhino 8.33.26188.13001 up, headless, hosted in PowerShell.
+
+=== TF-09 regression, 2026-08-04 18:05 ===
+
+PASS  defaults: draw feed = 100 mm/s   got 100
+PASS  defaults: air feed  = 500 mm/s   got 500
+PASS  defaults: Z lift    = 30 mm   got 30
+PASS  defaults: Z press   = 3 mm   got 3
+PASS  live: drawing targets are 3 mm below the paper   min -3  max -3
+PASS  live: hover points are lift+lead above the paper   got 35, expected 35
+PASS  dry: nothing ever reaches the paper   lowest point is 30 mm above
+PASS  dry: stroke body sits exactly at the 30 mm lift   got 30
+PASS  press moves the tip only along the pen axis   worst sideways shift 0E+0 mm
+PASS  curved sheet: every drawing target lies on the sheet   114 targets, worst gap 1.421E-14 mm
+PASS  curved sheet: projection actually did something   largest pull 170.88 mm
+PASS  flat sheet in the paper plane changes nothing   worst change 3.178E-14 mm
+PASS  KRL declares the paper base
+PASS  KRL declares the magazine base
+PASS  KRL asserts $BASE before drawing
+PASS  KRL sets the base before the first LIN   base at 1654, first LIN at 1891
+PASS  KRL still ends by parking the pen
+PASS  KRL header records the press value   dry run, so press must read as suppressed
+PASS  KRL header records the live press value
+PASS  orientation self-test passes (flat, live, press on)
+        worst origin drift 0.000000000 mm   (allowed 0.000148661)
+PASS  orientation self-test passes (curved sheet, projection on)
+        worst origin drift 0.000000000 mm   (allowed 0.000148661)
+PASS  orientation self-test passes (paper taped to a wall)
+        worst origin drift 0.000000000 mm   (allowed 0.000148661)
+PASS  vertical paper: press is 3 mm into the wall, not 3 mm down   worst deviation 0E+0 mm
+PASS  stroke order still loses nothing   order = [0,2,1]
+PASS  grouping still gives one swap per pen   SwapCount = 2
+PASS  resume still fetches the right pen before it moves   PEN_ENSURE(2) at 1812, first LIN at 1891
+
+=== 26 passed, 0 failed ===
+
+
+NOTES ON TWO OF THESE
+
+"press moves the tip only along the pen axis" looks like trivia and is not.
+A press that leaked into the in-plane geometry would distort every drawing by
+an amount that scales with the press - invisible on screen, obvious on paper.
+Measured sideways shift: exactly zero.
+
+"vertical paper: press is 3 mm into the wall, not 3 mm down" is the orientation
+requirement applied to the new number. Press follows the pen axis, so on a wall
+it goes into the wall. If it had been written as a world-Z offset this check
+would read 3 mm out and the drawing would be a smear.
+
+The curved-sheet test pulls points up to 170 mm onto a large cylinder, lands
+them on it to 1.4e-14 mm, and the orientation self-test still passes with the
+projection running - closest point commutes with rotation, so the guarantee
+survives.
+
+
+============================================================================
+FL-01 RE-CHECK - 2026-08-04
+============================================================================
+Reason      : FL-01 was re-read against the 23 July check-in email, which states
+              the deliverable as "software that takes in a MESH and outputs
+              KUKA|prc PLANES directly - the bridge from create-in-3D to
+              cut-in-the-real-world". Nothing in FL-01 was changed; this run
+              confirms the claim on a part it had not seen.
+Test part   : tapered, twisted 5-lobe extrusion, 260 mm long, closed solid,
+              deliberately WITHOUT rotational symmetry. Plus the same shape with
+              a 2-fold symmetric section, to check the documented limit.
+
+Rhino 8.33.26188.13001, headless.
+
+PASS  the test mesh is a closed solid   125 vertices, 126 faces
+PASS  status is OK   OK WITH WARNINGS: 396 planes, 12 branches
+PASS  planes came out   396 planes in 12 branches
+PASS  one branch per slice   12 branches for 12 sections
+PASS  MoveTypes lines up with Planes   396 planes, 396 move types
+PASS  every plane is valid and orthonormal   worst non-orthogonality 2.2e-16
+PASS  the tool axis points into the material   396 in, 0 out
+PASS  every target sits on the mesh surface   worst gap 1.3e-6 mm on a 260 mm part
+PASS  PartFrame X is the long axis   (-0.0108, 0.0014, 0.9999)
+PASS  orientation self-test passes on an asymmetric part
+        origin drift 0.000000000, path drift 0.000000, path rotation 0.028 deg
+PASS  symmetric part: the ambiguity is reported, not hidden
+PASS  symmetric part: pinning the axis still produces a path   396 planes
+
+=== 12 passed, 0 failed ===
+
+The "usable" in "usable planes come out" is what the middle block checks, and
+it is worth being explicit about what usable means for KUKA|prc:
+
+  - every plane is VALID and ORTHONORMAL, because prc reads A/B/C off the
+    frame and a skewed frame silently produces a wrong orientation rather
+    than an error;
+  - every origin lies ON the mesh, to 1.3e-6 mm;
+  - every tool axis points INTO the material, not out of it - checked by
+    probing 2 mm along +Z and asking the mesh whether that point is inside;
+  - the tree structure matches the slices, so Tree Branch selects one cut.
+
+TWO THINGS THAT LOOK LIKE FAILURES AND ARE NOT
+
+The first attempt at this test used a rectangular cross-section and the
+self-test came back FAIL with "worst rotation drift 180.000000000 deg". That
+was the test model, not the code: a rectangle is unchanged by a half turn
+about the long axis, so the part is genuinely two shapes at once and no
+arithmetic can prefer one. FL-01 detected it, refused to pick, and named the
+reason - which is the behaviour the README promises. The re-run above keeps
+that case deliberately, as a check that the ambiguity stays REPORTED.
+
+The first attempt also asserted targets lie on the mesh to 1e-6 mm and
+measured 2e-6. Rhino stores mesh vertices as single-precision floats, so that
+tolerance is below what the format can represent. The assertion was wrong, not
+the code; it is 1e-4 above.
+
+ALL CHECKS PASSED (ALL THREE RUNS: 25 + 26 + 12 = 63)
+
+
