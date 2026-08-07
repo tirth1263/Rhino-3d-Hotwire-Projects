@@ -9,7 +9,30 @@ paste any code, or wire any components. Open a file and it works.
 | File | What it is |
 |---|---|
 | `TF09_pen_drawing.gh` | The pen-switching drawing job (board item TF-09) |
-| `FL01_mesh_to_planes.gh` | Mesh in, robot planes out (board item FL-01) |
+| `FL01_mesh_to_planes.gh` | Mesh in, robot planes out (board item FL-01) — **carries the hotwire** |
+| `TirthWork_Cell.3dm` | The Rhino model: the hotwire tool, the TCPs, the foam block, the demo geometry |
+
+### About `TirthWork_Cell.3dm`
+
+You do **not** need it to run the `.gh` files — they still stand alone. It is
+there so you can see, measure and edit the things the definitions only describe.
+Nine layers:
+
+| Layer | What |
+|---|---|
+| `01_Flange_and_Robot_Base` | flange origin + axis cross, robot footprint |
+| `02_Hotwire_Tool_FLANGE_COORDS` | the real Rev2.1 tool, full and reduced |
+| `03_Wire` | the wire, 415.8 mm |
+| `04_TCP_Frames` | TOOL[4] midpoint, TOOL[5]/[6] wire ends, drawn as axes |
+| `05_Foam_Block_BASE3` | EPS block + the BASE[3] corner |
+| `06_FL01_Demo_Part` | the same part baked into the `.gh` |
+| `07_TF09_Demo_Drawing` / `08_TF09_Paper` | the same drawing, on its paper |
+| `09_TF09_Magazine` | the four placeholder pen slots |
+
+The tool sits in **flange coordinates** — flange face at the world origin,
+reaching up +Z — because that is the frame KUKA|prc wants for tool geometry.
+The cell content (foam, part, drawing) is in world coordinates. Turn layers on
+and off rather than expecting them to make sense all at once.
 
 ---
 
@@ -215,6 +238,39 @@ underneath the arm.
 
 ---
 
+## 6a. The hotwire, and the flip toggles
+
+The FL-01 file carries the **real hotwire end-effector**: the lab's own Rev2.1
+tool mesh, in flange coordinates, wired into prc so the arm carries it through
+the whole simulation. The TCP comes from the **HOTWIRE** component, not from a
+slider — type the four numbers from the pendant's CUSTOM TOOL dialog and the
+simulation matches the cell. They default to the real ones: **Z 422, A −90,
+B −90, C 0**.
+
+That puts the tool's **Z axis down the wire**, which was checked rather than
+assumed: stepping along it by half the measured span lands 0.65 mm from the
+modelled wire ends.
+
+**The flip toggles are on the left of that component.** `flipZ` approaches from
+the other side, `flipX` reverses travel, `spinDeg` rolls about the approach, and
+**`tiltDeg` rotates about the travel direction** — which is the one that matters
+for a wire.
+
+Why: the cutting element is a *line*, not a point, so it matters which way the
+line lies. FL-01's planes point Z **into** the material, which is right for a
+pen and wrong for a wire — fed straight in, the wire goes into the foam end-on
+and melts a pocket instead of cutting. `tiltDeg = 90` lays it across the travel.
+**That is why the shipped file has tiltDeg at 90.**
+
+Drag it to 0 and the component goes orange and tells you what is wrong. That is
+the loop: toggle, read `Log`, decide. Preview `WireLines` to see where the wire
+actually is.
+
+Full detail in `../06_hotwire_tool/HW_README.md`, including what is *not*
+modelled — wire sag, kerf, and the usable span as opposed to the modelled one.
+
+---
+
 ## 7. Using your own geometry
 
 ### TF-09 — your own drawing
@@ -344,6 +400,8 @@ The difference between a definition that solves and a robot that draws:
 | You want | Read |
 |---|---|
 | **How every stage actually works, step by step** | `IMPLEMENTATION.md` |
+| **Orientation, reach and the approach switch** | `HOTWIRE_ORIENTATION.md` |
+| **The hotwire TCP and the flip toggles** | `../06_hotwire_tool/HW_README.md` |
 | What was built and why, in plain words | `../04_progress/PROGRESS.md` |
 | The test transcript | `../04_progress/TEST_RESULTS.txt` |
 | Everything TF-09 can do | `../02_TF09_pen_switching/TF09_README.md` |

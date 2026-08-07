@@ -30,7 +30,7 @@ $refs = @(
   'System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll'
 )
 
-Add-Type -Path @("$build\GhBuild.cs") -ReferencedAssemblies $refs -ErrorAction Stop
+Add-Type -Path @("$build\GhBuild.cs", "$build\CellBuild.cs") -ReferencedAssemblies $refs -ErrorAction Stop
 
 # Rhino is hosted in-process inside powershell.exe rather than compiled to an
 # .exe, because Application Control on this machine blocks freshly built
@@ -39,6 +39,9 @@ $core = New-Object Rhino.Runtime.InProcess.RhinoCore (([string[]]@('/nosplash','
 try {
     [Rhino.PlugIns.PlugIn]::LoadPlugIn([Guid]'B45A29B1-4343-4035-989E-044E8580D9CF') | Out-Null
     ([Rhino.RhinoApp]::GetPlugInObject('Grasshopper')).RunHeadless() | Out-Null
+
+    Write-Host '################ RHINO CELL MODEL'
+    Write-Host ([CellBuild]::Run($root, $out))
 
     Write-Host '################ BUILD'
     Write-Host ([GhBuild]::Run($root, $out))

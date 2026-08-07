@@ -19,8 +19,14 @@ of re-pasting three panes into two files and hoping.
 
 | File | What |
 |---|---|
+| `CellBuild.cs` | Writes `TirthWork_Cell.3dm` — reads the lab's `Hotwire_2.1.3dm`, joins and reduces the tool mesh, lays out the TCPs, foam and demo geometry |
 | `GhBuild.cs` | Builds both documents in memory and writes the `.gh` files |
-| `build_gh.ps1` | Boots headless Rhino + Grasshopper, compiles `GhBuild.cs`, runs it, then **reopens and solves both files to check them** |
+| `build_gh.ps1` | Boots headless Rhino + Grasshopper, compiles both, runs them, then **reopens and solves both `.gh` files to check them** |
+
+`CellBuild` runs first and `GhBuild` calls back into it for the reduced tool
+mesh, so the tool in the Rhino file and the tool internalised in the `.gh` are
+**the same mesh** rather than two things that merely look alike. The demo part
+and demo drawing are shared the same way, in the other direction.
 
 This is tooling, not a deliverable. The deliverables are the `.cs` panes in
 `01_`/`02_`/`03_` and the two `.gh` files. **There is no Python anywhere** —
@@ -85,6 +91,13 @@ whole thing or throws; the size is checked both sides.
 
 **Only `.gh`, no `.ghx`.** The XML twin was dropped — this is not a git repo, so
 there is nothing to diff against, and it was the file that kept truncating.
+
+**The hotwire tool is taken, not re-modelled.** `Hotwire_2.1.3dm` is already in
+flange coordinates — flange face at the origin, tool along +Z, wire along Y at
+Z 421.35 — which is exactly the frame KUKA|prc wants for tool geometry. Joining
+its 84 meshes gives 62k faces; that is reduced to 6000 for the copy that goes
+into the `.gh`, because prc only uses it to draw the tool and check collisions.
+The full-resolution mesh stays in the `.3dm`.
 
 ## Rebuilding after changing a `.cs` pane
 

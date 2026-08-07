@@ -22,6 +22,8 @@ read-only for reference and **were not modified**.
 |---|---|
 | **Just run it — open a file and simulate the robot** | `05_grasshopper/RUN_ON_ROBOT.md` |
 | **Understand how every stage works, step by step** | `05_grasshopper/IMPLEMENTATION.md` |
+| **Orientation, reach and the approach switch** | `05_grasshopper/HOTWIRE_ORIENTATION.md` |
+| **Set the hotwire TCP, or flip the planes** | `06_hotwire_tool/HW_README.md` |
 | Understand what was built and why, in plain words | `04_progress/PROGRESS.md` |
 | **See it working** | `04_progress/renders/` (index in its README) |
 | **Read the test output** | `04_progress/TEST_RESULTS.txt` |
@@ -68,9 +70,16 @@ Tirth Work - 2/
 │   ├── RUN_ON_ROBOT.md               step-by-step, written for a beginner
 │   ├── IMPLEMENTATION.md             how every stage works, and why
 │   ├── TF09_pen_drawing.gh           open it; demo drawing baked in, prc wired
-│   ├── FL01_mesh_to_planes.gh        open it; demo part baked in, prc wired
+│   ├── FL01_mesh_to_planes.gh        open it; carries the hotwire end-effector
+│   ├── TirthWork_Cell.3dm            the Rhino model — tool, TCPs, foam, demo geo
 │   ├── HOW_THESE_WERE_BUILT.md       why they are generated, not hand-placed
-│   └── _build/                       the generator + its self-check
+│   └── _build/                       the generators + their self-check
+│
+├── 06_hotwire_tool/                hotwire TCP from KUKA A/B/C + plane flipping
+│   ├── HW_usings.cs
+│   ├── HW_body.cs
+│   ├── HW_helpers.cs
+│   └── HW_README.md                  the TCP, the flip toggles, what is not modelled
 │
 └── 04_progress/
     ├── PROGRESS.md                 step-by-step write-up, plain language
@@ -193,6 +202,18 @@ warn, and the self-test reports FAIL. The fix is to supply the axis by hand.
   the 65 planes in a pass need the tool to approach from *underneath* the part
   — unavoidable when a slice wraps the whole way round. That is what the
   indexed turntable is for, and it closes when the cell is measured.
+- **The hotwire end-effector is now on the arm.** The lab's own Rev2.1 tool
+  geometry rides through the FL-01 simulation, with the TCP taken from the
+  pendant's CUSTOM TOOL dialog (Z 422, A −90, B −90, C 0). That the frame really
+  follows the wire was checked, not assumed: stepping along the TCP's Z by half
+  the measured span lands **0.65 mm** from the modelled wire ends. There is a
+  Rhino model to go with it, `05_grasshopper/TirthWork_Cell.3dm`.
+- **A wire is a line, not a point, and that changed something.** FL-01's planes
+  point Z into the material, which is right for a pen and wrong for a wire — fed
+  straight in, all 65 targets would drive the wire into the foam end-on. The new
+  `06_hotwire_tool` component carries flip/tilt toggles and *reports which of
+  the three cases you are in*, so the answer is read off the canvas rather than
+  reasoned about. `tiltDeg = 90` is the shipped default and is the cutting one.
 - The KRL is written and the safety argument holds, but **no coordinate in it
   has touched hardware** and every slot pose is a placeholder. It is a program
   to be commissioned, not a program to run.

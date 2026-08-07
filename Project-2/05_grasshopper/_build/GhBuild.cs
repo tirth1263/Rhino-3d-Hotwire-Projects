@@ -296,27 +296,55 @@ public static class GhBuild
   //  is built once. Legacy KUKA|prc components only - the lab's handoff note
   //  is explicit that nothing may be rewired to "PRC Preview".
   // =========================================================================
+  /// toolPlaneSource: wire the TCP in from elsewhere (the hotwire component).
+  ///                  null builds the simple "N mm straight off the flange"
+  ///                  chain, which is all a pen needs.
+  /// toolGeo:         mesh in FLANGE COORDINATES for prc to draw and collide.
   static void PrcChain(GH_Document doc, IGH_Param cmdSource,
                        int toolNumber, double toolZ, string toolNote,
-                       float x, float y)
+                       float x, float y,
+                       IGH_Param toolPlaneSource, Mesh toolGeo)
   {
+    List<IGH_DocumentObject> grouped = new List<IGH_DocumentObject>();
+
     IGH_Component lin = Comp(doc, G_prcLin, "LINear Movement", x, y);
     lin.Params.Input[0].AddSource(cmdSource);
     // Speed (input 1) is deliberately left unwired so KUKA|prc's own default
     // applies. The authoritative feeds live in the generated KRL, not here.
 
     // ---- tool ----
-    GH_NumberSlider tz = Slider(doc, "toolZ mm", 0, 600, toolZ, 0, x - 40, y + 190);
-    IGH_Component tpt = Comp(doc, G_ConPoint, "Construct Point", x + 150, y + 190);
-    tpt.Params.Input[2].AddSource(tz);
-    IGH_Component tpl = Comp(doc, G_XYPlane, "XY Plane", x + 330, y + 190);
-    Wire(tpl, 0, tpt, 0);
-
     GH_NumberSlider tn = Slider(doc, "TOOL id", 0, 16, toolNumber, 0, x - 40, y + 250);
 
     IGH_Component tool = Comp(doc, G_prcTool, "Custom Tool: Plane", x + 480, y + 190);
     tool.Params.Input[1].AddSource(tn);
-    Wire(tool, 2, tpl, 0);
+
+    if (toolPlaneSource != null)
+    {
+      tool.Params.Input[2].AddSource(toolPlaneSource);
+    }
+    else
+    {
+      GH_NumberSlider tz = Slider(doc, "toolZ mm", 0, 600, toolZ, 0, x - 40, y + 190);
+      IGH_Component tpt = Comp(doc, G_ConPoint, "Construct Point", x + 150, y + 190);
+      tpt.Params.Input[2].AddSource(tz);
+      IGH_Component tpl = Comp(doc, G_XYPlane, "XY Plane", x + 330, y + 190);
+      Wire(tpl, 0, tpt, 0);
+      Wire(tool, 2, tpl, 0);
+      grouped.AddRange(new IGH_DocumentObject[] { tz, tpt, tpl });
+    }
+
+    if (toolGeo != null)
+    {
+      Param_Mesh tg = new Param_Mesh();
+      tg.CreateAttributes();
+      tg.NickName = "tool mesh";
+      tg.Access = GH_ParamAccess.list;
+      tg.PersistentData.Append(new GH_Mesh(toolGeo));
+      Place(doc, tg, x + 300, y + 120);
+      tool.Params.Input[0].AddSource(tg);
+      grouped.Add(tg);
+      L("  prc: tool geometry internalised, " + toolGeo.Faces.Count + " faces");
+    }
 
     Note(doc, toolNote, x - 40, y + 300, 300, 78);
 
@@ -358,8 +386,9 @@ public static class GhBuild
       "directory and file name, then tick the export.",
       x + 760, y + 190, 380, 210);
 
+    grouped.AddRange(new IGH_DocumentObject[] { lin, tool, rob, core, anal, sim, tn });
     Group(doc, "KUKA|prc  (legacy - never PRC Preview)",
-          Color.FromArgb(60, 43, 107, 107), lin, tool, rob, core, anal, sim, tz, tn, tpt, tpl);
+          Color.FromArgb(60, 43, 107, 107), grouped.ToArray());
   }
 
   // =========================================================================
@@ -607,8 +636,9 @@ public static class GhBuild
     PrcChain(doc, cs.Params.Output[3], 1, 150,
       "TOOL PLANE IS A GUESS\r\n\r\n" +
       "150 mm off the flange, TOOL[1] = technical pen. Replace with the " +
-      "measured TCP before you trust the reach check.",
-      1900, 120);
+      "measured TCP before you trust the reach check.\r\n\r\n" +
+      "The hotwire lives in the FL-01 file, not here - this is the pen job.",
+      1900, 120, null, null);
 
     Note(doc,
       "TF-09 - PEN-SWITCHING LOOP\r\n\r\n" +
@@ -663,22 +693,48 @@ public static class GhBuild
 
     IGH_Component cs = CSharp(doc, "FL-01", usings, body, members, ins, outs, 620, 60);
 
-    // ---- 0 geo : demo part internalised
+    // ---- 0 geo : demo part, standing vertical, on position sliders
+    //
+    // Internalised at the ORIGIN and moved by the sliders, rather than baked
+    // in place. That is what makes zMode = AUTO worth having: drag the part
+    // round the robot and the approach direction follows it.
     Param_Mesh pm = new Param_Mesh();
     pm.CreateAttributes();
     pm.NickName = "geo";
     pm.PersistentData.Append(new GH_Mesh(DemoPart()));
     Place(doc, pm, 60, 40);
-    Wire(cs, 0, pm);
+
+    // 1273 / -20 / 302 is where the part sits in HoitWire_V1.3dm, kept because
+    // it is the real setup and because it measures clean - see the note.
+    GH_NumberSlider partX = Slider(doc, "part X", -1600, 1600, 1273, 0, 60, 92);
+    GH_NumberSlider partY = Slider(doc, "part Y", -1600, 1600,  -20, 0, 60, 124);
+    GH_NumberSlider partZ = Slider(doc, "part Z",  -600, 1400,  302, 0, 60, 156);
+    IGH_Component partPt = Comp(doc, G_ConPoint, "Construct Point", 250, 92);
+    partPt.Params.Input[0].AddSource(partX);
+    partPt.Params.Input[1].AddSource(partY);
+    partPt.Params.Input[2].AddSource(partZ);
+
+    IGH_Component pmv = Comp(doc, G_Move, "Move", 420, 40);
+    Wire(pmv, 0, pm);
+    Wire(pmv, 1, partPt, 0);
+    Wire(cs, 0, pmv, 0);
 
     Note(doc,
-      "THE PART\r\n\r\n" +
-      "A demo mesh is baked into this param so the file works the moment you " +
-      "open it. To use your own: right-click > Clear values, then right-click " +
-      "> Set one Mesh and pick it in Rhino.\r\n\r\n" +
-      "Deliberately lopsided. A part that is symmetric about its own long " +
-      "axis has no unique seam, and FL-01 will say so rather than guess.",
-      60, 90, 400, 160);
+      "THE PART - STANDING VERTICAL\r\n\r\n" +
+      "Baked in at the origin and moved here, so dragging part X/Y/Z walks it " +
+      "round the cell and cardinal = AUTO re-picks the approach to match.\r\n\r\n" +
+      "Default 1273 / -20 / 302 - where the part sits in HoitWire_V1.3dm.\r\n\r\n" +
+      "THE REACHABLE ZONE IS A RING, NOT A MAXIMUM. The flange ends up 422 mm " +
+      "back from the cut, so a part that is too CLOSE is just as impossible as " +
+      "one too far - the arm would have to fold inside itself. Measured against " +
+      "prc with this tool:\r\n" +
+      "   part X below ~900    flange under ~460   FAILS, too close\r\n" +
+      "   part X 900 .. 1450   flange 460..1050    clean\r\n" +
+      "This is why moving the part nearer is not automatically the fix.\r\n\r\n" +
+      "Your own part: right-click geo > Clear values, then > Set one Mesh.\r\n\r\n" +
+      "The demo shape is deliberately lopsided - a part symmetric about its " +
+      "own long axis has no unique seam, and FL-01 says so rather than guess.",
+      620, 92, 360, 250);
 
     float sy = 280;
     GH_NumberSlider axisMode = Slider(doc, "axisMode",  0,   5,  0, 0, 60, sy); sy += 40;
@@ -765,11 +821,128 @@ public static class GhBuild
       "definition.",
       1500, 120, 330, 150);
 
-    PrcChain(doc, br.Params.Output[0], 4, 350,
-      "TOOL PLANE IS A GUESS\r\n\r\n" +
-      "350 mm off the flange, TOOL[4] = wire midpoint (TOOL[5]/[6] are the " +
-      "wire ends). Replace with the measured values from the real frame.",
-      1900, 340);
+    // ---- the hotwire tool, and the flip toggles ----------------------------
+    string hwDir = Path.Combine(root, "06_hotwire_tool");
+    In[] hwIns = new In[] {
+      new In("toolX",        "double", GH_ParamAccess.item, true),
+      new In("toolY",        "double", GH_ParamAccess.item, true),
+      new In("toolZ",        "double", GH_ParamAccess.item, true),
+      new In("toolA",        "double", GH_ParamAccess.item, false),
+      new In("toolB",        "double", GH_ParamAccess.item, false),
+      new In("toolC",        "double", GH_ParamAccess.item, false),
+      new In("wireSpan",     "double", GH_ParamAccess.item, true),
+      new In("wireAxis",     "int",    GH_ParamAccess.item, false),
+      new In("flipToolZ",    "bool",   GH_ParamAccess.item, true),
+      new In("flipToolSpin", "bool",   GH_ParamAccess.item, true),
+      new In("targets",      "Plane",  GH_ParamAccess.list, true),
+      new In("flipZ",        "bool",   GH_ParamAccess.item, true),
+      new In("flipX",        "bool",   GH_ParamAccess.item, true),
+      new In("tiltDeg",      "double", GH_ParamAccess.item, true),
+      new In("spinDeg",      "double", GH_ParamAccess.item, true),
+      new In("frameMode",    "int",    GH_ParamAccess.item, false),
+      new In("cardinal",     "int",    GH_ParamAccess.item, false),
+      new In("robotBase",    "Plane",  GH_ParamAccess.item, true),
+      new In("reachMax",     "double", GH_ParamAccess.item, true),
+      new In("reachMin",     "double", GH_ParamAccess.item, true)
+    };
+    string[] hwOuts = new string[] {
+      "ToolPlane","ToolAbc","Targets","WireLines","WireEndA","WireEndB",
+      "FlangePts","Approach","Status","Log"
+    };
+
+    IGH_Component hw = CSharp(doc, "HOTWIRE",
+      ReadPane(Path.Combine(hwDir, "HW_usings.cs")),
+      ReadPane(Path.Combine(hwDir, "HW_body.cs")),
+      ReadPane(Path.Combine(hwDir, "HW_helpers.cs")),
+      hwIns, hwOuts, 1900, 60);
+
+    // The four numbers from the CUSTOM TOOL dialog on the pendant.
+    float hy = 60;
+    GH_NumberSlider tZ = Slider(doc, "Tool Z",  0, 800, 422, 0, 1560, hy); hy += 34;
+    GH_NumberSlider tA = Slider(doc, "Tool A", -180, 180, -90, 0, 1560, hy); hy += 34;
+    GH_NumberSlider tB = Slider(doc, "Tool B", -180, 180, -90, 0, 1560, hy); hy += 34;
+    GH_NumberSlider tC = Slider(doc, "Tool C", -180, 180,   0, 0, 1560, hy); hy += 34;
+    GH_NumberSlider wS = Slider(doc, "wireSpan", 50, 800, 415.8, 1, 1560, hy); hy += 34;
+    GH_NumberSlider wA = Slider(doc, "wireAxis",  0,   2, 2, 0, 1560, hy); hy += 40;
+    Wire(hw, 2, tZ); Wire(hw, 3, tA); Wire(hw, 4, tB); Wire(hw, 5, tC);
+    Wire(hw, 6, wS); Wire(hw, 7, wA);
+
+    GH_BooleanToggle fTZ = Toggle(doc, "flipToolZ",    false, 1560, hy); hy += 34;
+    GH_BooleanToggle fTS = Toggle(doc, "flipToolSpin", false, 1560, hy); hy += 34;
+    Wire(hw, 8, fTZ); Wire(hw, 9, fTS);
+
+    Wire(hw, 10, br, 0);                       // the chosen pass
+
+    GH_BooleanToggle fZ = Toggle(doc, "flipZ",  false, 1560, hy); hy += 34;
+    GH_BooleanToggle fX = Toggle(doc, "flipX",  false, 1560, hy); hy += 34;
+    // 90, not 0. FL-01 hands out planes whose Z points INTO the material,
+    // which is right for a point tool and wrong for a wire - it would put the
+    // wire in end-on. 90 lays it across the travel. Drag it to 0 and watch the
+    // HOTWIRE component start complaining; that is the toggle doing its job.
+    // tiltDeg only bites when zMode is 0. Left at 0 because zMode ships on.
+    GH_NumberSlider  tl = Slider(doc, "tiltDeg", -180, 180,  0, 0, 1560, hy); hy += 34;
+    GH_NumberSlider  sp = Slider(doc, "spinDeg", -180, 180,  0, 0, 1560, hy); hy += 40;
+    Wire(hw, 11, fZ); Wire(hw, 12, fX); Wire(hw, 13, tl); Wire(hw, 14, sp);
+
+    // ---- THE APPROACH SWITCH ----
+    GH_NumberSlider zM = Slider(doc, "frameMode", 0, 2, 1, 0, 1560, hy); hy += 34;
+    GH_NumberSlider xM = Slider(doc, "cardinal",  0, 4, 0, 0, 1560, hy); hy += 34;
+    GH_NumberSlider rM = Slider(doc, "reachMax", 200, 2000, 1101, 0, 1560, hy); hy += 34;
+    GH_NumberSlider rN = Slider(doc, "reachMin",   0, 1000,  460, 0, 1560, hy); hy += 40;
+    Wire(hw, 15, zM); Wire(hw, 16, xM); Wire(hw, 18, rM); Wire(hw, 19, rN);
+    // 17 robotBase left unwired - the virtual robot stands at the world origin
+
+    GH_Panel abc  = Panel(doc, "ToolAbc", null, 2300,  60, 330,  46, null);
+    GH_Panel hSt  = Panel(doc, "Status",  null, 2300, 120, 330,  60, null);
+    GH_Panel hLog = Panel(doc, "Log",     null, 2300, 195, 330, 250, null);
+    abc .AddSource(hw.Params.Output[2]);
+    hSt .AddSource(hw.Params.Output[9]);
+    hLog.AddSource(hw.Params.Output[10]);
+
+    Note(doc,
+      "THE APPROACH SWITCH\r\n\r\n" +
+      "cardinal   0 AUTO  1 +X  2 -X  3 +Y  4 -Y\r\n" +
+      "frameMode  0 keep  1 CUT  2 wire-on-cardinal\r\n\r\n" +
+      "FL-01's Z is RADIAL - it swings right round the loop, so somewhere in " +
+      "every pass it points back at the robot and asks the arm to reach " +
+      "through the part. That was the problem.\r\n\r\n" +
+      "cardinal AUTO reads where the part sits: in front is +X, behind is -X, " +
+      "either side is +/-Y. Drag the part X/Y/Z sliders and the approach " +
+      "re-picks itself.\r\n\r\n" +
+      "frameMode says what that direction drives, and the two are NOT the same:\r\n" +
+      "  1 CUT   drives the ARM. The wire is laid across the travel, tangent " +
+      "to the surface. Both reach and cutting satisfied.  <-- shipped\r\n" +
+      "  2 WIRE  drives the WIRE, literally. For this tool that points the " +
+      "wire end-on into the foam. Try it and read the warning.\r\n\r\n" +
+      "Both can be right at once because reach acts on X (the flange sits " +
+      "422 mm back along it) and cutting acts on Z (the wire lies on it).",
+      1560, hy + 44, 330, 300);
+
+    Note(doc,
+      "THE HOTWIRE\r\n\r\n" +
+      "Tool Z / A / B / C are the four numbers from the pendant's CUSTOM TOOL " +
+      "dialog. Type what the pendant says and the simulation matches the cell. " +
+      "The defaults are the real tool: Z 422, A -90, B -90, C 0.\r\n\r\n" +
+      "wireSpan 415.8 is the span MODELLED in Hotwire_2.1.3dm. The usable " +
+      "cutting span is shorter and still has to be measured.\r\n\r\n" +
+      "flipZ approaches from the other side. flipX reverses travel. spinDeg " +
+      "rolls about the approach. tiltDeg only bites when zMode = 0.\r\n\r\n" +
+      "Preview WireLines to see where the wire is, and FlangePts to see where " +
+      "the WRIST has to be - that is the one the reach check measures.",
+      1560, hy + 356, 330, 270);
+
+    Note(doc,
+      "A -90 / B -90 / C 0 IS GIMBAL LOCK\r\n\r\n" +
+      "B = +/-90 is the pose where only A+C is determined, so the pendant may " +
+      "read back A 0 / B -90 / C -90 for the very same orientation. Nothing is " +
+      "wrong when that happens.",
+      2300, 400, 330, 130);
+
+    PrcChain(doc, hw.Params.Output[3], 4, 422,
+      "TOOL[4] = WIRE MIDPOINT\r\n\r\n" +
+      "The TCP comes from the HOTWIRE component, not from a slider here, and " +
+      "the tool mesh is the lab's own Hotwire Rev2.1 in flange coordinates.",
+      1900, 620, hw.Params.Output[1], CellBuild.ReducedTool());
 
     Note(doc,
       "FL-01 - MESH TO KUKA|prc PLANES\r\n\r\n" +
@@ -789,7 +962,9 @@ public static class GhBuild
   /// A small multi-pen drawing: two nested rectangles (pen 0), two circles
   /// (pen 1), four hatch lines (pen 2). Interleaved on purpose so that
   /// grouping by pen visibly collapses the swap count to two.
-  static List<Curve> DemoDrawing(List<int> pens)
+  /// Public so CellBuild can put the SAME curves in the Rhino model. If these
+  /// two ever drift apart, the .3dm stops describing the .gh.
+  public static List<Curve> DemoDrawing(List<int> pens)
   {
     List<Curve> cs = new List<Curve>();
     pens.Clear();
@@ -825,15 +1000,19 @@ public static class GhBuild
   /// any rotational symmetry about the long axis has two equally correct seam
   /// answers, and FL-01 refuses to choose between them - correctly, but it
   /// makes a confusing first thing to open. This shape has no symmetry at all.
-  static Mesh DemoPart()
+  public static Mesh DemoPart()
   {
     int rings = 26, around = 40;
     double len = 260.0;
     Mesh m = new Mesh();
 
-    // Sat 620 mm out and 250 mm up, not on the origin: the virtual robot
-    // stands at the origin, and a part built around it is inside the arm.
-    double cx = 620.0, cz = 250.0;
+    // Built STANDING VERTICAL and centred on the origin. Vertical because that
+    // is how the part sits in the cell; on the origin because the canvas moves
+    // it, and a mesh that is already somewhere cannot be moved somewhere else
+    // without the two offsets fighting.
+    //
+    // The long axis runs up Z, so the ring coordinate below is a height.
+    double cx = 0.0, cz = 0.0;
 
     for (int i = 0; i < rings; i++)
     {
@@ -847,7 +1026,8 @@ public static class GhBuild
         double a = 2.0 * Math.PI * j / around + twist;
         double r = 42.0 * taper *
                    (1.0 + 0.26 * Math.Sin(5 * a) + 0.11 * Math.Cos(2 * a) + 0.06 * Math.Sin(3 * a));
-        m.Vertices.Add(new Point3d(cx + x, r * Math.Cos(a), cz + r * Math.Sin(a)));
+        // x is the position along the part's long axis, which is now Z.
+        m.Vertices.Add(new Point3d(cx + r * Math.Cos(a), r * Math.Sin(a), cz + x));
       }
     }
 
@@ -861,8 +1041,8 @@ public static class GhBuild
       }
 
     // caps
-    int c0 = m.Vertices.Add(new Point3d(cx - len * 0.5, 0, cz));
-    int c1 = m.Vertices.Add(new Point3d(cx + len * 0.5, 0, cz));
+    int c0 = m.Vertices.Add(new Point3d(cx, 0, cz - len * 0.5));
+    int c1 = m.Vertices.Add(new Point3d(cx, 0, cz + len * 0.5));
     for (int j = 0; j < around; j++)
     {
       int j2 = (j + 1) % around;
