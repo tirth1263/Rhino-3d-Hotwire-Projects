@@ -31,6 +31,30 @@
 //   17  robotBase    Plane    item   optional   where the robot stands (default world XY)
 //   18  reachMax     double   item   optional   flange reach, mm (default 1101)
 //   19  reachMin     double   item   optional   inner limit, mm (default 460)
+//   20  cutOrient    int      item   REQUIRED   0 vertical / 1 across / 2 along / 3 cardinal
+//   21  zToRobot     bool     item   optional   turn frame Z back towards the robot
+//
+//   cutOrient IS THE ONE TO REACH FOR PER PART
+//   It says what the WIRE should do, and different parts want different things:
+//
+//     0 VERTICAL   wire straight up and down. Best on a part that stands up -
+//                  the wire spans the full height and sweeps round the profile,
+//                  so each pass cuts the whole flank instead of nibbling it.
+//     1 ACROSS     wire across the travel and tangent to the surface. Same
+//                  thing whenever the slices are horizontal, but derived from
+//                  the surface, so it follows a part lying down or tilted.
+//     2 ALONG      wire along the travel. It slides down its own kerf.
+//     3 CARDINAL   wire along the approach. It goes in end-on.
+//
+//   2 and 3 are the wrong answers, kept so you can see what wrong looks like.
+//
+//   zToRobot AND WHY IT MAY REFUSE
+//   With the tool taught A -90 / B -90 / C 0 the wire lies ON tool Z, so Z and
+//   the wire are the same axis. Stand the wire vertical and Z is vertical too -
+//   it cannot also point at the robot. The component says so rather than
+//   quietly ignoring you. If you want Z to be a true approach axis, teach the
+//   tool A 0 / B 0 / C 0 and set wireAxis = 1: Z is then the flange axis and
+//   the wire sits on Y, and the two stop fighting.
 //
 //   THE SWITCH, AND WHY IT IS TWO SWITCHES
 //   FL-01 hands out planes whose Z is RADIAL - it swings right around the
@@ -113,6 +137,9 @@ opt.Cardinal  = cardinal;
 opt.RobotBase = robotBase.IsValid ? robotBase : Plane.WorldXY;
 opt.ReachMax  = reachMax > 0 ? reachMax : 1101.0;
 opt.ReachMin  = reachMin > 0 ? reachMin :  460.0;
+
+opt.CutOrientation = cutOrient;
+opt.ZToRobot       = zToRobot;
 
 HotwireTool.Result res = HotwireTool.Build(
   targets != null ? new List<Plane>(targets) : null, opt);

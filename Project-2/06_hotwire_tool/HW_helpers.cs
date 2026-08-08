@@ -94,6 +94,33 @@ public static class HotwireTool
     // 1..4    +X / -X / +Y / -Y, forced by hand
     public int Cardinal = 0;
 
+    // --- WHAT THE WIRE SHOULD DO ----------------------------------------
+    //
+    // 0 VERTICAL      wire straight up and down, along world Z
+    // 1 ACROSS        wire across the travel and tangent to the surface
+    // 2 ALONG_TRAVEL  wire lying along the direction of travel
+    // 3 CARDINAL      wire along the cardinal direction
+    //
+    // VERTICAL is the default because it removes material best on a part that
+    // stands up: the wire spans the full height and sweeps round the profile,
+    // so every pass cuts along the whole flank instead of nibbling at it.
+    //
+    // ACROSS is the same thing whenever the slices are horizontal - it just
+    // derives the direction from the surface rather than from the world, so it
+    // follows a part that is lying down or tilted.
+    //
+    // 2 and 3 are the two ways to get it wrong, kept because being able to see
+    // the wrong one is how you come to trust the right one. The Log names
+    // which of the three you are in on every solve.
+    public int CutOrientation = 0;
+
+    // Turn the frame's Z back towards the robot.
+    //
+    // Only meaningful when Z is NOT the wire - see the note on WireAxis. When
+    // the wire is on tool Z and standing vertical, Z can only be up or down,
+    // and the component says so rather than quietly doing nothing.
+    public bool ZToRobot = false;
+
     public Plane RobotBase = Plane.WorldXY;
 
     // The envelope is a RING, not a maximum, and the inner wall matters here
@@ -189,8 +216,8 @@ public static class HotwireTool
         {
           log.AppendLine("MODE     CUT - the cardinal drives the ARM. X points that way, so the");
           log.AppendLine("         flange is pulled " + Math.Abs(o.ToolZ).ToString("0") +
-                         " mm back towards the robot. The wire is laid ACROSS the");
-          log.AppendLine("         travel and tangent to the surface, which is the orientation that cuts.");
+                         " mm back towards the robot.");
+          log.AppendLine("WIRE SET " + CutName(o.CutOrientation));
         }
         else
         {
@@ -242,6 +269,7 @@ public static class HotwireTool
         Plane fb = q; fb.Origin = pb; r.WireEndB.Add(fb);
       }
 
+      ZReport(r, o, log);
       Reach(r, o, log);
 
       bool touched = o.FlipZ || o.FlipX ||
@@ -405,6 +433,64 @@ public static class HotwireTool
     }
   }
 
+  private static string CutName(int m)
+  {
+    if (m == 1) return "ACROSS the travel, tangent to the surface - follows a tilted part";
+    if (m == 2) return "ALONG the travel - it will slide down its own kerf and cut nothing";
+    if (m == 3) return "along the CARDINAL - it will go into the material end-on";
+    return "VERTICAL, along world Z - spans the height of an upright part";
+  }
+
+  /// Did zToRobot actually manage it?
+  ///
+  /// Worth reporting rather than assuming, because when the wire is on tool Z
+  /// and standing vertical, Z is vertical too and simply cannot point at the
+  /// robot. Silently doing nothing there would look like a bug.
+  private static void ZReport(Result r, Options o, StringBuilder log)
+  {
+    if (r.Targets.Count == 0) return;
+
+    // Measured HORIZONTALLY. The robot base sits on the floor and the work is
+    // up in the air, so a Z pointing straight down scores well against the raw
+    // direction to the base while facing nothing like the robot. Dropping the
+    // vertical is the difference between reporting this honestly and flattering
+    // it.
+    int toward = 0;
+    double best = -1.0, vertical = 0.0;
+
+    foreach (Plane q in r.Targets)
+    {
+      Vector3d flat = o.RobotBase.Origin - q.Origin;
+      flat.Z = 0.0;
+      if (!flat.Unitize()) continue;
+
+      Vector3d z = q.ZAxis;
+      vertical += Math.Abs(z.Z);
+      double dot = z * flat;
+      if (dot > 0.5) toward++;
+      if (dot > best) best = dot;
+    }
+    vertical /= r.Targets.Count;
+
+    log.AppendLine("FRAME Z  " + toward + " of " + r.Targets.Count +
+                   " targets face the robot horizontally   (best " + best.ToString("0.00") +
+                   ", 1.00 = straight at it;  Z is " + (100.0 * vertical).ToString("0") +
+                   "% vertical)");
+
+    if (o.ZToRobot && toward == 0)
+    {
+      string m = "zToRobot is on but Z cannot be turned to face the robot - it is " +
+                 (100.0 * vertical).ToString("0") + "% vertical. With wireAxis = 2 the wire " +
+                 "IS the Z axis, so once the wire stands up Z can only point up or down. " +
+                 "Two ways out: set cutOrient to 2 or 3 to lay the wire down (it will " +
+                 "stop cutting well), or accept that on this tool the axis running from " +
+                 "the cut back to the wrist is the one that faces the robot - it has to " +
+                 "be, or the arm could not reach past its own tool.";
+      r.Warnings.Add(m);
+      log.AppendLine("  !! " + m);
+    }
+  }
+
   private static Vector3d CardinalOf(int mode)
   {
     if (mode == 1) return Vector3d.XAxis;
@@ -443,31 +529,67 @@ public static class HotwireTool
     Vector3d c = card;
     if (!c.Unitize()) return p;
 
-    Vector3d x, z;
+    // Mode 2 is the literal one: the cardinal drives the wire, nothing else.
+    if (o.FrameMode == 2) return Build(p, c, c, o);
 
-    if (o.FrameMode == 2)
+    // ---- where does the wire want to point? ----
+    Vector3d wire;
+    switch (o.CutOrientation)
     {
-      z = c;
-      x = p.XAxis - (p.XAxis * z) * z;             // the travel, flattened
-      if (!x.Unitize()) x = AnyPerp(z);
+      case 1:  wire = p.YAxis; break;                    // across travel, tangent
+      case 2:  wire = p.XAxis; break;                    // along travel
+      case 3:  wire = c;       break;                    // along the cardinal
+      default: wire = Vector3d.ZAxis; break;             // VERTICAL
     }
-    else
+    return Build(p, wire, c, o);
+  }
+
+  /// Assemble a frame that puts the wire on `wire` and the arm along `arm`.
+  ///
+  /// The wire does not always live on the frame's Z - that depends on how the
+  /// tool was taught, which is what WireAxis records - so the frame is built
+  /// around whichever axis actually carries it. The arm direction takes the
+  /// next axis, squared up against the wire.
+  private static Plane Build(Plane p, Vector3d wire, Vector3d arm, Options o)
+  {
+    Vector3d w = wire;
+    if (!w.Unitize()) return p;
+
+    Vector3d a = arm - (arm * w) * w;          // square the arm to the wire
+    if (!a.Unitize()) a = AnyPerp(w);
+
+    Vector3d x, y;
+    if (o.WireAxis == 2)                       // wire on Z - the taught tool
     {
-      x = c;
-      z = p.YAxis - (p.YAxis * x) * x;             // tangent, across the travel
-      if (!z.Unitize())
-      {
-        // The tangent is parallel to the arm direction - happens at the very
-        // top and bottom of a part, where the slice degenerates. Fall back to
-        // the travel direction rather than emitting a broken frame.
-        z = p.XAxis - (p.XAxis * x) * x;
-        if (!z.Unitize()) z = AnyPerp(x);
-      }
+      x = a;
+      y = Vector3d.CrossProduct(w, x);
+      if (!y.Unitize()) return p;
+    }
+    else if (o.WireAxis == 1)                  // wire on Y - Z is then free to
+    {                                          // be the approach direction
+      y = w;
+      x = a;
+      Vector3d z = Vector3d.CrossProduct(x, y);
+      if (!z.Unitize()) return p;
+    }
+    else                                       // wire on X
+    {
+      x = w;
+      y = Vector3d.CrossProduct(AnyPerp(w), w);
+      if (!y.Unitize()) y = AnyPerp(w);
     }
 
-    Vector3d y = Vector3d.CrossProduct(z, x);
-    if (!y.Unitize()) return p;
-    return new Plane(p.Origin, x, y);
+    Plane q = new Plane(p.Origin, x, y);
+    if (!q.IsValid) return p;
+
+    // ---- turn Z back towards the robot, if that is even possible ----
+    if (o.ZToRobot)
+    {
+      Vector3d toRobot = o.RobotBase.Origin - p.Origin;
+      if (toRobot.Unitize() && (q.ZAxis * toRobot) < 0.0)
+        q = new Plane(q.Origin, q.XAxis, -q.YAxis);   // flip Z, stay right handed
+    }
+    return q;
   }
 
   private static Vector3d AnyPerp(Vector3d v)

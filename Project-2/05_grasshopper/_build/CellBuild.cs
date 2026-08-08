@@ -76,11 +76,18 @@ public static class CellBuild
   // falls back to walking up from this assembly's own folder.
   static string _root;
 
+  /// For callers that want the tool mesh without running a full build.
+  /// Needed because Add-Type compiles this into a temporary assembly, so the
+  /// assembly's own location says nothing about where the project is.
+  public static void SetRoot(string root) { _root = root; }
+
   static string Root()
   {
-    if (!string.IsNullOrEmpty(_root)) return _root;
-    return Path.GetFullPath(Path.Combine(
-      Path.GetDirectoryName(new Uri(typeof(CellBuild).Assembly.CodeBase).LocalPath), @"..\.."));
+    if (string.IsNullOrEmpty(_root))
+      throw new InvalidOperationException(
+        "CellBuild does not know where the project is. Call Run(root, out) or " +
+        "SetRoot(root) before asking for the tool mesh.");
+    return _root;
   }
 
   static StringBuilder _log;

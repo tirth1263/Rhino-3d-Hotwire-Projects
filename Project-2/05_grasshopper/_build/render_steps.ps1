@@ -24,6 +24,11 @@ $refs = @("$sys\RhinoCommon.dll", "$ghDir\GH_IO.dll", "$ghDir\Grasshopper.dll",
 Add-Type -Path @("$build\GhBuild.cs", "$build\CellBuild.cs", "$build\RenderCell.cs") `
          -ReferencedAssemblies $refs -ErrorAction Stop
 
+# CellBuild is asked for the tool mesh directly here, without a full build
+# running first, so it has to be told where the project is.
+$root = Split-Path -Parent $out
+[CellBuild]::SetRoot($root)
+
 $core = New-Object Rhino.Runtime.InProcess.RhinoCore (([string[]]@('/nosplash','/notemplate')), ([Rhino.Runtime.InProcess.WindowStyle]::NoWindow))
 try {
     [Rhino.PlugIns.PlugIn]::LoadPlugIn([Guid]'B45A29B1-4343-4035-989E-044E8580D9CF') | Out-Null
@@ -116,10 +121,19 @@ try {
     $scenes.Add((Grab 'Step 8 - too CLOSE, not too far' `
       'part X 800. The flange sits 422 mm back from the cut, so it lands inside the robot. Moving work nearer is not automatically the fix.'))
 
-    # 9 - the working setup
+    # 9, 10 - the cut orientation variable
     S 'part X' 1273; S 'part Y' -20
-    $scenes.Add((Grab 'Step 9 - the shipped setup' `
-      'part 1273 / -20 / 302, frameMode 1, cardinal AUTO. All 12 passes solve clean.'))
+    S 'cutOrient' 2
+    $scenes.Add((Grab 'Step 9 - cutOrient 2, wire laid down' `
+      'Wire ALONG the travel. It slides down the kerf it already made and removes nothing. Measured wire verticality 0.00.'))
+
+    S 'cutOrient' 0
+    $scenes.Add((Grab 'Step 10 - cutOrient 0, wire VERTICAL' `
+      'Wire straight up and down, spanning the full height of the upright part. Measured verticality 1.00. This is the shipped default.'))
+
+    # 11 - the working setup
+    $scenes.Add((Grab 'Step 11 - the shipped setup' `
+      'part 1273 / -20 / 302, frameMode 1, cardinal AUTO, cutOrient 0. All 12 passes solve clean.'))
 
     Write-Host ([RenderCell]::Run($imgs, $scenes))
     Write-Host "wrote $($scenes.Count) renders to $imgs"

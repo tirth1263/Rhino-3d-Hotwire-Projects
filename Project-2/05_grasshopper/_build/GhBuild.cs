@@ -843,7 +843,9 @@ public static class GhBuild
       new In("cardinal",     "int",    GH_ParamAccess.item, false),
       new In("robotBase",    "Plane",  GH_ParamAccess.item, true),
       new In("reachMax",     "double", GH_ParamAccess.item, true),
-      new In("reachMin",     "double", GH_ParamAccess.item, true)
+      new In("reachMin",     "double", GH_ParamAccess.item, true),
+      new In("cutOrient",    "int",    GH_ParamAccess.item, false),
+      new In("zToRobot",     "bool",   GH_ParamAccess.item, true)
     };
     string[] hwOuts = new string[] {
       "ToolPlane","ToolAbc","Targets","WireLines","WireEndA","WireEndB",
@@ -889,7 +891,12 @@ public static class GhBuild
     GH_NumberSlider xM = Slider(doc, "cardinal",  0, 4, 0, 0, 1560, hy); hy += 34;
     GH_NumberSlider rM = Slider(doc, "reachMax", 200, 2000, 1101, 0, 1560, hy); hy += 34;
     GH_NumberSlider rN = Slider(doc, "reachMin",   0, 1000,  460, 0, 1560, hy); hy += 40;
+    // 0 VERTICAL - the wire stands up and spans the height of an upright part,
+    // which removes material far better than nibbling at it side-on.
+    GH_NumberSlider cO = Slider(doc, "cutOrient", 0, 3, 0, 0, 1560, hy); hy += 34;
+    GH_BooleanToggle zR = Toggle(doc, "zToRobot", false, 1560, hy); hy += 40;
     Wire(hw, 15, zM); Wire(hw, 16, xM); Wire(hw, 18, rM); Wire(hw, 19, rN);
+    Wire(hw, 20, cO); Wire(hw, 21, zR);
     // 17 robotBase left unwired - the virtual robot stands at the world origin
 
     GH_Panel abc  = Panel(doc, "ToolAbc", null, 2300,  60, 330,  46, null);
@@ -915,8 +922,18 @@ public static class GhBuild
       "  2 WIRE  drives the WIRE, literally. For this tool that points the " +
       "wire end-on into the foam. Try it and read the warning.\r\n\r\n" +
       "Both can be right at once because reach acts on X (the flange sits " +
-      "422 mm back along it) and cutting acts on Z (the wire lies on it).",
-      1560, hy + 44, 330, 300);
+      "422 mm back along it) and cutting acts on Z (the wire lies on it).\r\n\r\n" +
+      "cutOrient says what the WIRE does, and it is the one to change per part:\r\n" +
+      "  0 VERTICAL  up and down - spans the height of an upright part  <-- shipped\r\n" +
+      "  1 ACROSS    across the travel, tangent - follows a tilted part\r\n" +
+      "  2 ALONG     along the travel - slides down its own kerf\r\n" +
+      "  3 CARDINAL  along the approach - goes in end-on\r\n" +
+      "2 and 3 are the wrong answers, kept so you can see wrong.\r\n\r\n" +
+      "zToRobot turns frame Z back towards the robot. It will REFUSE while the " +
+      "wire is on tool Z and vertical, because then Z is the wire and can only " +
+      "point up or down. Read the Log - it explains and tells you the tool " +
+      "definition that separates them.",
+      1560, hy + 44, 330, 470);
 
     Note(doc,
       "THE HOTWIRE\r\n\r\n" +
@@ -929,7 +946,7 @@ public static class GhBuild
       "rolls about the approach. tiltDeg only bites when zMode = 0.\r\n\r\n" +
       "Preview WireLines to see where the wire is, and FlangePts to see where " +
       "the WRIST has to be - that is the one the reach check measures.",
-      1560, hy + 356, 330, 270);
+      1560, hy + 526, 330, 270);
 
     Note(doc,
       "A -90 / B -90 / C 0 IS GIMBAL LOCK\r\n\r\n" +

@@ -166,6 +166,53 @@ In mode 1 on an upright part with horizontal slices, the wire comes out
 **vertical** — spanning the part's height and sweeping round its profile. That
 is the orientation that cuts.
 
+### `cutOrient` — what the wire should do
+
+The one to change per part.
+
+| Value | Wire lies | Good for |
+|---|---|---|
+| **0 VERTICAL** | straight up and down, world Z | **an upright part — shipped** |
+| 1 ACROSS | across the travel, tangent to the surface | a part lying down or tilted |
+| 2 ALONG | along the travel | nothing — slides down its own kerf |
+| 3 CARDINAL | along the approach | nothing — goes in end-on |
+
+**Why VERTICAL removes material best here.** The wire is 415.8 mm and the part
+is 260 mm tall, so a vertical wire spans the whole height. Every pass then cuts
+the full flank in one sweep instead of nibbling at it side-on.
+
+`1 ACROSS` gives the same answer whenever the slices are horizontal — it just
+derives the direction from the surface rather than the world, so it follows a
+part that is lying down. Measured on the upright demo part, both give wire
+verticality **1.00**; `2` and `3` give **0.00** and prc errors.
+
+| cutOrient | wire verticality | prc | warnings |
+|---|---|---|---|
+| **0 VERTICAL** | **1.00** | **clean** | 0 |
+| 1 ACROSS | 1.00 | clean | 0 |
+| 2 ALONG | 0.00 | ERROR | 2 |
+| 3 CARDINAL | 0.00 | ERROR | 3 |
+
+### `zToRobot` — and why it sometimes refuses
+
+Turns the frame's Z back towards the robot. **It will tell you when it can't**,
+rather than silently doing nothing.
+
+With the tool taught **A −90 / B −90 / C 0 the wire lies on tool Z** — the wire
+and Z are the same axis. Stand the wire vertical and Z is vertical too, so it
+cannot also face the robot. Measured: Z comes out 100% vertical and the
+component raises a warning saying so.
+
+There is a deeper reason this is not just a labelling problem. **The tool
+reaches 422 mm ahead of the wrist**, so the axis running from the cut back to
+the flange *must* point at the robot — otherwise the arm could not reach past
+its own tool. Whichever axis carries that direction is the one facing the robot;
+the opposite one necessarily faces away.
+
+Confirmed by trying the alternative: teaching `A 0 / B 0 / C 0` with
+`wireAxis 1` does make Z a free approach axis — and then pointing Z at the robot
+puts the flange on the **far** side of the cut, and prc reports unreachable.
+
 ### What the component tells you
 
 `Log` reports, every solve:
@@ -183,13 +230,15 @@ be, which is what the reach test actually measures.
 
 ## 4. The rule of thumb, for the next project
 
-> **Point the frame's X at the robot's shoulder, and the wire across the cut.**
+> **Point the frame's X at the robot's shoulder, and stand the wire up.**
 
-Then check three things, in this order:
+Then check four things, in this order:
 
 1. **Bearing** — is the part within 170° either side of front?
 2. **Radius** — is it between 900 and 1500 mm?
 3. **Wire attitude** — does `Log` say *across the travel*?
+4. **Cut orientation** — `cutOrient 0` for an upright part, `1` for one lying
+   down or tilted.
 
 If all three pass, prc will almost certainly solve.
 
@@ -223,7 +272,9 @@ Screenshots of the Grasshopper canvas itself need Rhino open on a desktop;
 | R04–R06 AUTO | part in front / left / right — approach follows it |
 | R07 blind spot | part behind. AUTO picks −X correctly and it is still unreachable |
 | R08 too close | part at 800 mm. Fails for being **near**, not far |
-| R09 shipped setup | 1273 / −20 / 302, all 12 passes clean |
+| R09 `cutOrient 2` | wire laid down along the travel. Verticality 0.00 |
+| R10 `cutOrient 0` | wire vertical, spanning the part height. Verticality 1.00 |
+| R11 shipped setup | 1273 / −20 / 302, all 12 passes clean |
 
 ---
 
