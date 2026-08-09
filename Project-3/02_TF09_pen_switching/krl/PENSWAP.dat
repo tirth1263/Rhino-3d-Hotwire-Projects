@@ -1,0 +1,111 @@
+&ACCESS RVP
+&REL 1
+&COMMENT ASU Robotics Lab - pen magazine state and geometry
+DEFDAT PENSWAP PUBLIC
+
+;=============================================================================
+; PENSWAP.DAT
+; ASU Robotics Lab  ·  D1 Drawing  ·  board item TF-09
+;
+; This file holds two things:
+;   1. The PERSISTENT STATE of the pen magazine. These variables survive a
+;      program reset, a program deselect, and a controller power cycle. That
+;      persistence is the whole reason a safe abort is possible: after any
+;      stop, PEN_INIT() can read these and know exactly what was in flight.
+;   2. The GEOMETRY of the magazine, filled in by PEN_CONFIG() in PENSWAP.SRC.
+;
+; NOTHING IN HERE IS COMMISSIONED. Every number is a placeholder until the
+; magazine has been touched up on the real cell. See PENSWAP_README.md.
+;=============================================================================
+
+
+;--- PERSISTENT STATE --------------------------------------------------------
+; PEN_HELD   which slot's pen is currently in the gripper. -1 means empty.
+; PEN_PHASE  how far through a swap we are. Full table in PENSWAP.SRC.
+; PEN_TARGET the slot the in-flight swap was heading for, -1 if none.
+; PEN_INDEX  the stroke index the drawing job last reached. Resume point.
+; PEN_DRYRUN TRUE  = never energise the clamp, never touch the paper.
+;
+; PEN_PHASE is the single most important variable in this project. It is
+; written IMMEDIATELY BEFORE every irreversible motion and IMMEDIATELY AFTER
+; it completes, so an abort at any instant leaves a phase that says which
+; half-finished action has to be completed. Do not optimise those writes away.
+
+DECL GLOBAL INT  PEN_HELD   = -1
+DECL GLOBAL INT  PEN_PHASE  = 0
+DECL GLOBAL INT  PEN_TARGET = -1
+DECL GLOBAL INT  PEN_INDEX  = 0
+DECL GLOBAL BOOL PEN_DRYRUN = TRUE
+
+
+;--- MAGAZINE SIZE -----------------------------------------------------------
+DECL GLOBAL INT PEN_SLOTS = 4
+
+
+;--- BASES -------------------------------------------------------------------
+; The drawing end-effector README defines two work bases:
+;   BASE[1]  worktable centre     - flat paper, several sizes, one calibration
+;   BASE[2]  large-format shift   - the big sheet
+; Paper sizes that share a base need no recalibration between them; that is the
+; whole point of having the second base rather than re-teaching the first.
+;
+; PEN_BASENO   the base the DRAWING JOB's targets are expressed in. The
+;              generated .src writes this in its header.
+; PEN_MAGBASE  the base the MAGAZINE was taught in. The magazine is bolted to
+;              the cell, so it does not move when the paper base changes.
+;              Keep these two separate or a job on BASE[2] will drive the
+;              magazine poses through the large-format offset.
+;
+; Every change of $BASE in PENSWAP.SRC goes through PEN_USE_BASE(), which forces
+; an advance-run stop first. Do not assign $BASE directly anywhere else.
+
+DECL GLOBAL INT PEN_BASENO  = 1
+DECL GLOBAL INT PEN_MAGBASE = 1
+
+
+;--- MAGAZINE GEOMETRY -------------------------------------------------------
+; Filled by PEN_CONFIG(). Declared here so they are global and inspectable
+; from the smartPAD variable display while commissioning.
+;
+; PEN_SEAT   the pose where the pen is fully seated in its slot
+; PEN_APPR   a pose clear of the magazine, on the straight line the pen must
+;            travel along to enter or leave its slot
+; PEN_TOOLNO which TOOL[] number belongs to the pen in that slot
+;
+; Slots are numbered 1..PEN_SLOTS in KRL. The Grasshopper front end numbers
+; pens from 0, and adds one when it writes PEN_ENSURE(). Do not "fix" one end
+; of that without fixing the other.
+
+DECL GLOBAL FRAME PEN_SEAT[8]
+DECL GLOBAL FRAME PEN_APPR[8]
+DECL GLOBAL INT   PEN_TOOLNO[8]
+
+
+;--- I/O MAP -----------------------------------------------------------------
+; PEN_OUT_CLAMP    output that opens the collet. TRUE = OPEN = pen released.
+;                  Wire it so the collet is CLOSED when the output is FALSE,
+;                  i.e. spring-closed. A power loss must never drop a pen.
+; PEN_IN_PRESENT   sensor: a pen body is inside the gripper
+; PEN_IN_OPEN      sensor: the collet has actually reached the open position
+; PEN_IN_CLOSED    sensor: the collet has actually reached the closed position
+
+DECL GLOBAL INT PEN_OUT_CLAMP  = 1
+DECL GLOBAL INT PEN_IN_PRESENT = 1
+DECL GLOBAL INT PEN_IN_OPEN    = 2
+DECL GLOBAL INT PEN_IN_CLOSED  = 3
+
+; Set FALSE while the sensors are not yet wired. The routines then trust the
+; commanded state instead of the feedback, and say so on the smartPAD.
+; THIS MUST BE TRUE BEFORE ANY UNATTENDED RUN.
+DECL GLOBAL BOOL PEN_SENSORS_FITTED = FALSE
+
+
+;--- MOTION LIMITS -----------------------------------------------------------
+; Deliberately slow. The magazine is the one place the tool goes inside a
+; fixture, so it is the one place a wrong number breaks something.
+DECL GLOBAL REAL PEN_VEL_APPROACH = 0.100   ; m/s, moving to the approach pose
+DECL GLOBAL REAL PEN_VEL_INSERT   = 0.020   ; m/s, the last few mm into the slot
+DECL GLOBAL INT  PEN_CLAMP_MS     = 1500    ; ms to wait for a clamp sensor
+DECL GLOBAL REAL PEN_SETTLE_S     = 0.30    ; s to let the pen stop swinging
+
+ENDDAT

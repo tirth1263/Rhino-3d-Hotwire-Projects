@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1420 760" width="1420" height="760" font-family="Segoe UI, Arial, sans-serif">
+<style>
+  .bg    { fill:#f7f7f4; }
+  .comp  { fill:#e8eef6; stroke:#3a5a80; stroke-width:2; }
+  .slid  { fill:#fdf6e3; stroke:#b58900; stroke-width:1.4; }
+  .tog   { fill:#eaf5ea; stroke:#3f8f4f; stroke-width:1.4; }
+  .par   { fill:#f0eaf5; stroke:#6a4c93; stroke-width:1.4; }
+  .prev  { fill:#fdeaea; stroke:#a83232; stroke-width:1.4; }
+  .prc   { fill:#e6f0f0; stroke:#2b6b6b; stroke-width:1.8; }
+  .pan   { fill:#ffffff; stroke:#888; stroke-width:1.2; }
+  .t     { font-size:12.5px; fill:#1c1c1c; }
+  .tb    { font-size:13px; fill:#1c1c1c; font-weight:600; }
+  .th    { font-size:16px; fill:#1c1c1c; font-weight:700; }
+  .ts    { font-size:11px; fill:#555; }
+  .tw    { font-size:11.5px; fill:#7a3030; font-style:italic; }
+  .w     { stroke:#7d7d7d; stroke-width:1.3; fill:none; }
+  .wk    { stroke:#2b6b6b; stroke-width:2.2; fill:none; }
+  .note  { font-size:11.5px; fill:#444; }
+</style>
+
+<rect class="bg" x="0" y="0" width="1420" height="760"/>
+
+<text class="th" x="30" y="34">FL-01 — Mesh to KUKA|prc planes · Grasshopper canvas layout</text>
+<text class="tw" x="30" y="54">DIAGRAM — this is a drawing of what to connect, not a screenshot of a built definition.</text>
+
+<!-- ============ LEFT: input widgets ============ -->
+<text class="tb" x="34" y="92">inputs</text>
+
+<rect class="par"  x="30" y="104" width="188" height="30" rx="4"/>
+<text class="t"    x="40" y="124">Mesh param  (referenced)</text>
+
+<rect class="slid" x="30" y="146" width="188" height="86" rx="4"/>
+<text class="tb"   x="40" y="164">Number Sliders — integer</text>
+<text class="ts"   x="40" y="180">axisMode 0–5 · sections 1–200</text>
+<text class="ts"   x="40" y="195">samples 8–400 · loopMode 0–1</text>
+<text class="ts"   x="40" y="210">normalMode 0–1 · rollMode 0–1</text>
+<text class="ts"   x="40" y="225">start: axisMode 0, sections 12</text>
+
+<rect class="slid" x="30" y="244" width="188" height="72" rx="4"/>
+<text class="tb"   x="40" y="262">Number Sliders — float</text>
+<text class="ts"   x="40" y="278">tiltDeg −90…90 · leadLen 0–100</text>
+<text class="ts"   x="40" y="293">minSpacing 0–20</text>
+<text class="ts"   x="40" y="308">maxTurnDeg 5–90  (start 30)</text>
+
+<rect class="tog"  x="30" y="328" width="188" height="52" rx="4"/>
+<text class="tb"   x="40" y="346">Boolean Toggles</text>
+<text class="ts"   x="40" y="362">flipApproach · selfTest</text>
+<text class="ts"   x="40" y="376">selfTest OFF for normal work</text>
+
+<rect class="par"  x="30" y="392" width="188" height="52" rx="4"/>
+<text class="tb"   x="40" y="410">Plane params (optional)</text>
+<text class="ts"   x="40" y="426">fromFrame · toFrame</text>
+<text class="ts"   x="40" y="440">wire both or neither</text>
+
+<rect class="par"  x="30" y="456" width="188" height="40" rx="4"/>
+<text class="tb"   x="40" y="474">Vector param (optional)</text>
+<text class="ts"   x="40" y="489">customAxis — axisMode 5 only</text>
+
+<!-- ============ CENTRE: the component ============ -->
+<rect class="comp" x="300" y="100" width="300" height="580" rx="6"/>
+<text class="tb"   x="316" y="122">C# Script  —  FL01</text>
+<text class="ts"   x="316" y="138">usings / body / helpers in the 3 panes</text>
+<line x1="300" y1="148" x2="600" y2="148" stroke="#3a5a80" stroke-width="1"/>
+
+<text class="t" x="314" y="172">geo</text>
+<text class="t" x="314" y="199">axisMode</text>
+<text class="t" x="314" y="226">customAxis</text>
+<text class="t" x="314" y="253">sections</text>
+<text class="t" x="314" y="280">samples</text>
+<text class="t" x="314" y="307">loopMode</text>
+<text class="t" x="314" y="334">normalMode</text>
+<text class="t" x="314" y="361">flipApproach</text>
+<text class="t" x="314" y="388">tiltDeg</text>
+<text class="t" x="314" y="415">rollMode</text>
+<text class="t" x="314" y="442">leadLen</text>
+<text class="t" x="314" y="469">minSpacing</text>
+<text class="t" x="314" y="496">maxTurnDeg</text>
+<text class="t" x="314" y="523">fromFrame</text>
+<text class="t" x="314" y="550">toFrame</text>
+<text class="t" x="314" y="577">selfTest</text>
+
+<text class="t" x="586" y="172" text-anchor="end">out</text>
+<text class="t" x="586" y="199" text-anchor="end">Planes</text>
+<text class="t" x="586" y="226" text-anchor="end">Points</text>
+<text class="t" x="586" y="253" text-anchor="end">MoveTypes</text>
+<text class="t" x="586" y="280" text-anchor="end">Sections</text>
+<text class="t" x="586" y="307" text-anchor="end">SlicePlanes</text>
+<text class="t" x="586" y="334" text-anchor="end">PartFrame</text>
+<text class="t" x="586" y="361" text-anchor="end">SliceAxis</text>
+<text class="t" x="586" y="388" text-anchor="end">Count</text>
+<text class="t" x="586" y="415" text-anchor="end">MaxTurn</text>
+<text class="t" x="586" y="442" text-anchor="end">Status</text>
+<text class="t" x="586" y="469" text-anchor="end">Log</text>
+<text class="t" x="586" y="496" text-anchor="end">SelfTest</text>
+
+<text class="ts" x="316" y="620">Every automatic decision comes from</text>
+<text class="ts" x="316" y="636">the mesh's own principal axes.</text>
+<text class="ts" x="316" y="652">axisMode 2/3/4 are world-locked</text>
+<text class="ts" x="316" y="668">and say so in a warning.</text>
+
+<!-- wires in -->
+<path class="w" d="M218 119 C 260 119, 262 168, 300 168"/>
+<path class="w" d="M218 189 C 260 189, 262 195, 300 195"/>
+<path class="w" d="M218 280 C 260 280, 262 384, 300 384"/>
+<path class="w" d="M218 354 C 260 354, 262 357, 300 357"/>
+<path class="w" d="M218 418 C 260 418, 262 519, 300 519"/>
+<path class="w" d="M218 476 C 260 476, 262 222, 300 222"/>
+
+<!-- ============ RIGHT: consumers ============ -->
+<text class="tb" x="704" y="92">check the geometry first</text>
+
+<rect class="prev" x="700" y="104" width="250" height="46" rx="4"/>
+<text class="tb"   x="710" y="122">Custom Preview  ←  PartFrame</text>
+<text class="ts"   x="710" y="138">red X must run down the long axis</text>
+
+<rect class="prev" x="700" y="160" width="250" height="42" rx="4"/>
+<text class="tb"   x="710" y="178">Custom Preview  ←  Sections</text>
+<text class="ts"   x="710" y="194">clean rings, one per slice</text>
+
+<rect class="prev" x="700" y="212" width="250" height="42" rx="4"/>
+<text class="tb"   x="710" y="230">Custom Preview  ←  Planes</text>
+<text class="ts"   x="710" y="246">blue Z must aim INTO the material</text>
+
+<rect class="pan"  x="700" y="264" width="250" height="42" rx="4"/>
+<text class="tb"   x="710" y="282">Panel  ←  Status  /  Log</text>
+<text class="ts"   x="710" y="298">one line verdict + the full story</text>
+
+<rect class="pan"  x="700" y="316" width="250" height="46" rx="4"/>
+<text class="tb"   x="710" y="334">Panel  ←  SelfTest</text>
+<text class="ts"   x="710" y="350">wants: RESULT: PASS</text>
+
+<path class="w" d="M600 330 C 650 330, 660 127, 700 127"/>
+<path class="w" d="M600 276 C 650 276, 660 181, 700 181"/>
+<path class="w" d="M600 195 C 650 195, 660 233, 700 233"/>
+<path class="w" d="M600 438 C 650 438, 660 285, 700 285"/>
+<path class="w" d="M600 492 C 650 492, 660 339, 700 339"/>
+
+<!-- KUKA chain -->
+<text class="tb" x="704" y="418">then, and only then, the robot chain</text>
+
+<rect class="prc" x="700" y="430" width="200" height="44" rx="4"/>
+<text class="tb"  x="710" y="448">Tree Branch</text>
+<text class="ts"  x="710" y="464">+ slider "Slice Select"</text>
+
+<rect class="prc" x="700" y="490" width="200" height="44" rx="4"/>
+<text class="tb"  x="710" y="508">LINear Movement</text>
+<text class="ts"  x="710" y="524">KUKA|prc  (legacy, not Preview)</text>
+
+<rect class="prc" x="700" y="550" width="200" height="58" rx="4"/>
+<text class="tb"  x="710" y="568">KUKA|prc CORE</text>
+<text class="ts"  x="710" y="584">+ Custom Tool (measured TCP)</text>
+<text class="ts"  x="710" y="599">+ Analysis  → reach / singularity</text>
+
+<path class="wk" d="M600 195 C 640 195, 660 452, 700 452"/>
+<line class="wk" x1="800" y1="474" x2="800" y2="490"/>
+<line class="wk" x1="800" y1="534" x2="800" y2="550"/>
+
+<!-- simulator -->
+<rect class="comp" x="980" y="430" width="230" height="80" rx="6"/>
+<text class="tb"   x="992" y="450">C# Script — SIMULATOR</text>
+<text class="ts"   x="992" y="468">targets ← Planes (flattened)</text>
+<text class="ts"   x="992" y="484">moveTypes ← MoveTypes</text>
+<text class="ts"   x="992" y="500">t ← Number Slider 0.000–1.000</text>
+
+<rect class="prev" x="980" y="524" width="230" height="60" rx="4"/>
+<text class="tb"   x="992" y="542">Custom Preview</text>
+<text class="ts"   x="992" y="558">Trail green · Remaining grey</text>
+<text class="ts"   x="992" y="574">ToolBody red</text>
+
+<path class="w" d="M600 195 C 780 195, 900 460, 980 460"/>
+<path class="w" d="M600 249 C 790 249, 900 480, 980 480"/>
+<line class="w" x1="1095" y1="510" x2="1095" y2="524"/>
+
+<text class="note" x="980" y="620">The simulator answers the two questions</text>
+<text class="note" x="980" y="637">KUKA|prc playback cannot: how long, and</text>
+<text class="note" x="980" y="654">where does the wrist turn fastest.</text>
+<text class="note" x="980" y="671">Reach and singularity stay with prc Analysis.</text>
+
+<!-- legend -->
+<rect class="slid" x="1240" y="104" width="18" height="14"/><text class="ts" x="1266" y="116">Number Slider</text>
+<rect class="tog"  x="1240" y="126" width="18" height="14"/><text class="ts" x="1266" y="138">Boolean Toggle</text>
+<rect class="par"  x="1240" y="148" width="18" height="14"/><text class="ts" x="1266" y="160">Param</text>
+<rect class="comp" x="1240" y="170" width="18" height="14"/><text class="ts" x="1266" y="182">C# Script</text>
+<rect class="prev" x="1240" y="192" width="18" height="14"/><text class="ts" x="1266" y="204">Preview</text>
+<rect class="pan"  x="1240" y="214" width="18" height="14"/><text class="ts" x="1266" y="226">Panel</text>
+<rect class="prc"  x="1240" y="236" width="18" height="14"/><text class="ts" x="1266" y="248">KUKA|prc</text>
+
+<text class="tw" x="30" y="726">Native Grasshopper and C# only. No Python. Legacy KUKA|prc components (category "KUKA|prc"), not "PRC Preview".</text>
+</svg>

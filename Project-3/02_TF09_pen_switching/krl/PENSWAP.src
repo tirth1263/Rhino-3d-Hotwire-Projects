@@ -1,0 +1,528 @@
+&ACCESS RVP
+&REL 1
+&COMMENT ASU Robotics Lab - pen magazine routines
+DEF PENSWAP( )
+
+;=============================================================================
+; PENSWAP.SRC
+; ASU Robotics Lab  ·  D1 Drawing  ·  board item TF-09
+; Companion file: PENSWAP.DAT   Front end: the TF-09 Grasshopper component
+;
+; WHAT THIS MODULE IS
+;   Subroutines only. Running PENSWAP itself just configures the magazine and
+;   reports what it thinks it is holding; it does not move the robot.
+;
+; THE ONE RULE THAT MAKES ABORT SAFE
+;   The collet is only ever commanded to change state while the tool is at a
+;   slot's SEATED pose. It is never opened in mid-air, never opened while
+;   moving, and never opened at the approach pose. Therefore at every instant
+;   in time, a pen is either fully in its slot or fully in the gripper. There
+;   is no position in the whole cycle from which a stop can drop one.
+;
+;   PEN_PHASE records which side of each irreversible step we are on, and is
+;   written to a persistent DAT variable, so it survives an abort. PEN_INIT()
+;   reads it on the next start and finishes the half-done transaction before
+;   anything else is allowed to move.
+;
+; PHASE TABLE
+;   0  IDLE       nothing in flight. PEN_HELD is the truth. Tool clear.
+;   1  TO_PARK    holding a pen, travelling to its slot's approach pose
+;   2  SEATING    holding a pen, moving approach -> seat
+;   3  RELEASING  at the seat, collet commanded OPEN
+;   4  WITHDRAW   collet open and confirmed, pen is in the slot, backing out
+;   5  TO_PICK    gripper empty, travelling to the target slot's approach pose
+;   6  ENGAGING   gripper empty, moving approach -> seat, collet open
+;   7  CLAMPING   at the seat, collet commanded CLOSED
+;   8  EXTRACT    collet closed and confirmed, pen is held, backing out
+;
+; SAFETY
+;   Commission in T1 with the magazine EMPTY first, then with one dummy pen.
+;   PEN_DRYRUN = TRUE suppresses every collet command, so the whole cycle can
+;   be watched at T1 speed with nothing actuating. Read PENSWAP_README.md.
+;=============================================================================
+
+  PEN_CONFIG()
+  $LOOP_MSG[] = "PENSWAP loaded. See PEN_HELD / PEN_PHASE."
+END
+
+
+;=============================================================================
+; PEN_CONFIG  -  magazine geometry
+;
+; ALL NUMBERS BELOW ARE PLACEHOLDERS. Replace them with touched-up values.
+; PEN_SEAT[n] is where the pen sits fully home in slot n.
+; PEN_APPR[n] is on the straight line out of that slot, clear of the magazine.
+; The pen enters and leaves along the line between the two, and nothing else.
+;
+; The poses are read in PEN_MAGBASE, not in the drawing job's base. Touch them
+; up with BASE[PEN_MAGBASE] selected on the smartPAD or the numbers will be
+; wrong by the large-format offset.
+;
+; TOOL ASSIGNMENT - from end-effectors/01-drawing/README.md
+;   TOOL[1]  technical pen (Rapidograph)
+;   TOOL[2]  marker (Sharpie / fineliner)
+;   TOOL[3]  brush
+;   TOOL[4]  spare - ballpoint, or a second technical pen
+; Slot number and TOOL number are deliberately separate: re-arranging the
+; magazine must not mean re-measuring a TCP. Change PEN_TOOLNO[n], not the
+; tool data.
+;=============================================================================
+GLOBAL DEF PEN_CONFIG( )
+
+  PEN_SLOTS = 4
+
+  ; ---- slot 1 ---- technical pen (Rapidograph) -----------------------------
+  PEN_SEAT[1] = {X 620.0, Y -300.0, Z 180.0, A 0.0, B 0.0, C 180.0}
+  PEN_APPR[1] = {X 620.0, Y -300.0, Z 280.0, A 0.0, B 0.0, C 180.0}
+  PEN_TOOLNO[1] = 1
+
+  ; ---- slot 2 ---- marker / fineliner --------------------------------------
+  PEN_SEAT[2] = {X 620.0, Y -240.0, Z 180.0, A 0.0, B 0.0, C 180.0}
+  PEN_APPR[2] = {X 620.0, Y -240.0, Z 280.0, A 0.0, B 0.0, C 180.0}
+  PEN_TOOLNO[2] = 2
+
+  ; ---- slot 3 ---- brush ---------------------------------------------------
+  PEN_SEAT[3] = {X 620.0, Y -180.0, Z 180.0, A 0.0, B 0.0, C 180.0}
+  PEN_APPR[3] = {X 620.0, Y -180.0, Z 280.0, A 0.0, B 0.0, C 180.0}
+  PEN_TOOLNO[3] = 3
+
+  ; ---- slot 4 ---- spare (ballpoint / second technical pen) ----------------
+  PEN_SEAT[4] = {X 620.0, Y -120.0, Z 180.0, A 0.0, B 0.0, C 180.0}
+  PEN_APPR[4] = {X 620.0, Y -120.0, Z 280.0, A 0.0, B 0.0, C 180.0}
+  PEN_TOOLNO[4] = 4
+
+END
+
+
+;=============================================================================
+; PEN_INIT  -  run this once at the top of every job
+;
+; Finishes whatever the last abort interrupted, then leaves the cell in a
+; state the job can rely on. If it cannot work out what is going on, it stops
+; and asks a human rather than guessing.
+;=============================================================================
+GLOBAL DEF PEN_INIT( )
+
+  IF PEN_PHASE == 0 THEN
+    ; Clean state. Still worth checking the sensor against what we believe.
+    IF PEN_SENSORS_FITTED THEN
+      WAIT SEC 0
+      IF ($IN[PEN_IN_PRESENT] AND (PEN_HELD < 0)) THEN
+        $LOOP_MSG[] = "PEN_INIT: a pen is in the gripper but PEN_HELD is -1. Clear it by hand."
+        HALT
+      ENDIF
+      IF ((NOT $IN[PEN_IN_PRESENT]) AND (PEN_HELD > 0)) THEN
+        $LOOP_MSG[] = "PEN_INIT: PEN_HELD says a pen is held but the sensor is clear. Check by hand."
+        HALT
+      ENDIF
+    ENDIF
+    RETURN
+  ENDIF
+
+  $LOOP_MSG[] = "PEN_INIT: recovering an interrupted pen swap."
+  PEN_RECOVER()
+
+END
+
+
+;=============================================================================
+; PEN_RECOVER  -  complete the half-finished transaction
+;
+; Every branch below ends with the pen either fully in a slot or fully in the
+; gripper, and PEN_PHASE back to 0. Nothing here is optional or cosmetic.
+;=============================================================================
+GLOBAL DEF PEN_RECOVER( )
+  DECL INT S
+
+  SWITCH PEN_PHASE
+
+  CASE 1, 2
+    ; A pen is in the gripper and we were on our way to put it back. It is
+    ; still held, so simply finish the park. Approach first: we may be
+    ; anywhere between the two poses, and going via the approach pose keeps
+    ; the entry along the slot axis.
+    S = PEN_HELD
+    IF S < 1 THEN
+      $LOOP_MSG[] = "PEN_RECOVER: phase says parking but PEN_HELD is unset. Stop and check."
+      HALT
+    ENDIF
+    PEN_DO_PARK(S)
+
+  CASE 3
+    ; At the seat with the collet commanded open. The pen is in the slot or
+    ; about to be. Re-command open, confirm, then back out empty.
+    S = PEN_HELD
+    IF S < 1 THEN
+      S = PEN_TARGET
+    ENDIF
+    IF S < 1 THEN
+      $LOOP_MSG[] = "PEN_RECOVER: phase 3 with no slot recorded. Stop and check."
+      HALT
+    ENDIF
+    PEN_GOTO_SEAT(S)
+    PEN_COLLET_OPEN()
+    PEN_HELD = -1
+    PEN_PHASE = 4
+    PEN_GOTO_APPR(S)
+    PEN_PHASE = 0
+
+  CASE 4
+    ; Collet open, pen already in the slot, tool still inside. Just withdraw.
+    S = PEN_TARGET
+    IF S < 1 THEN
+      S = 1
+    ENDIF
+    PEN_HELD = -1
+    PEN_GOTO_APPR(S)
+    PEN_PHASE = 0
+
+  CASE 5
+    ; Gripper empty, on the way to fetch one. Nothing was disturbed. Stand
+    ; down; the job will ask again.
+    PEN_HELD = -1
+    PEN_PHASE = 0
+
+  CASE 6
+    ; Gripper empty and possibly inside a slot with the collet open. Backing
+    ; out is safe and leaves the pen where it belongs. Do not try to finish
+    ; the pick: we do not know how far in we got.
+    S = PEN_TARGET
+    IF S < 1 THEN
+      $LOOP_MSG[] = "PEN_RECOVER: phase 6 with no target slot. Stop and check."
+      HALT
+    ENDIF
+    PEN_COLLET_OPEN()
+    PEN_GOTO_APPR(S)
+    PEN_HELD = -1
+    PEN_PHASE = 0
+
+  CASE 7
+    ; At the seat with the collet commanded closed. Whether we got the pen is
+    ; a question the sensor can answer.
+    S = PEN_TARGET
+    IF S < 1 THEN
+      $LOOP_MSG[] = "PEN_RECOVER: phase 7 with no target slot. Stop and check."
+      HALT
+    ENDIF
+    PEN_GOTO_SEAT(S)
+    IF PEN_SENSORS_FITTED THEN
+      WAIT SEC 0
+      IF $IN[PEN_IN_PRESENT] THEN
+        PEN_COLLET_CLOSE()
+        PEN_HELD = S
+        PEN_PHASE = 8
+        PEN_GOTO_APPR(S)
+        PEN_SET_TOOL(S)
+        PEN_PHASE = 0
+      ELSE
+        PEN_COLLET_OPEN()
+        PEN_HELD = -1
+        PEN_GOTO_APPR(S)
+        PEN_PHASE = 0
+      ENDIF
+    ELSE
+      ; No sensor to ask. The conservative answer is to leave the pen behind.
+      PEN_COLLET_OPEN()
+      PEN_HELD = -1
+      PEN_GOTO_APPR(S)
+      PEN_PHASE = 0
+      $LOOP_MSG[] = "PEN_RECOVER: no presence sensor. Left the pen in its slot. Check it."
+    ENDIF
+
+  CASE 8
+    ; Pen is held and confirmed, we were withdrawing. Finish the withdrawal.
+    S = PEN_HELD
+    IF S < 1 THEN
+      S = PEN_TARGET
+    ENDIF
+    IF S < 1 THEN
+      $LOOP_MSG[] = "PEN_RECOVER: phase 8 with no slot recorded. Stop and check."
+      HALT
+    ENDIF
+    PEN_GOTO_APPR(S)
+    PEN_SET_TOOL(S)
+    PEN_PHASE = 0
+
+  DEFAULT
+    $LOOP_MSG[] = "PEN_RECOVER: unknown PEN_PHASE. Stop and check by hand."
+    HALT
+
+  ENDSWITCH
+
+  PEN_TARGET = -1
+
+END
+
+
+;=============================================================================
+; PEN_ENSURE  -  the only routine a drawing job ever calls
+;
+;   PEN_ENSURE(n)   make sure pen n is in the gripper and $TOOL is set for it
+;   PEN_ENSURE(-1)  make sure the gripper is empty
+;
+; Slots are 1..PEN_SLOTS. The Grasshopper front end numbers pens from 0 and
+; adds one when it writes this call.
+;=============================================================================
+GLOBAL DEF PEN_ENSURE(WANT :IN)
+  DECL INT WANT
+
+  IF PEN_PHASE <> 0 THEN
+    PEN_RECOVER()
+  ENDIF
+
+  IF WANT == PEN_HELD THEN
+    ; Already holding the right one. Re-assert the tool anyway: cheap, and it
+    ; makes a resumed job correct even if $TOOL was changed by hand.
+    IF WANT > 0 THEN
+      PEN_SET_TOOL(WANT)      ; this also puts the drawing base back
+    ELSE
+      PEN_USE_BASE(PEN_BASENO)
+    ENDIF
+    RETURN
+  ENDIF
+
+  IF (WANT > PEN_SLOTS) OR (WANT == 0) THEN
+    $LOOP_MSG[] = "PEN_ENSURE: slot number out of range."
+    HALT
+  ENDIF
+
+  ; Put back what we are holding, if anything.
+  IF PEN_HELD > 0 THEN
+    PEN_DO_PARK(PEN_HELD)
+  ENDIF
+
+  ; Fetch the new one, if one was asked for.
+  IF WANT > 0 THEN
+    PEN_DO_ACQUIRE(WANT)
+  ELSE
+    ; Park-only. PEN_SET_TOOL did not run, so nothing has put the drawing base
+    ; back yet. Do it here, so PEN_ENSURE always returns with the paper base
+    ; active whichever branch it took.
+    PEN_USE_BASE(PEN_BASENO)
+  ENDIF
+
+END
+
+
+;=============================================================================
+; PEN_DO_PARK  -  put the held pen back in slot S
+;=============================================================================
+GLOBAL DEF PEN_DO_PARK(S :IN)
+  DECL INT S
+
+  PEN_TARGET = S
+
+  PEN_PHASE = 1
+  PEN_GOTO_APPR(S)
+
+  PEN_PHASE = 2
+  PEN_GOTO_SEAT(S)
+  WAIT SEC PEN_SETTLE_S
+
+  ; --- the one irreversible instant, and it happens at the seat -------------
+  PEN_PHASE = 3
+  PEN_COLLET_OPEN()
+  PEN_HELD = -1
+
+  PEN_PHASE = 4
+  PEN_GOTO_APPR(S)
+
+  ; The gripper is empty, so the light tool load applies again.
+  $TOOL = TOOL_DATA[1]
+  $LOAD = LOAD_DATA[1]
+
+  PEN_PHASE = 0
+  PEN_TARGET = -1
+
+END
+
+
+;=============================================================================
+; PEN_DO_ACQUIRE  -  take the pen out of slot S and set $TOOL for it
+;=============================================================================
+GLOBAL DEF PEN_DO_ACQUIRE(S :IN)
+  DECL INT S
+
+  IF PEN_HELD > 0 THEN
+    $LOOP_MSG[] = "PEN_DO_ACQUIRE called with a pen already held. Program error."
+    HALT
+  ENDIF
+
+  PEN_TARGET = S
+
+  ; Open before entering, so nothing is forced.
+  PEN_COLLET_OPEN()
+
+  PEN_PHASE = 5
+  PEN_GOTO_APPR(S)
+
+  PEN_PHASE = 6
+  PEN_GOTO_SEAT(S)
+  WAIT SEC PEN_SETTLE_S
+
+  ; --- the one irreversible instant, and it happens at the seat -------------
+  PEN_PHASE = 7
+  PEN_COLLET_CLOSE()
+
+  IF PEN_SENSORS_FITTED THEN
+    WAIT SEC 0
+    IF NOT $IN[PEN_IN_PRESENT] THEN
+      ; The collet closed on nothing. Open, back out, stop. Do NOT carry on
+      ; drawing with an empty gripper: that is how a job gets ruined silently.
+      PEN_COLLET_OPEN()
+      PEN_HELD = -1
+      PEN_GOTO_APPR(S)
+      PEN_PHASE = 0
+      $LOOP_MSG[] = "PEN_DO_ACQUIRE: slot was empty. Refill the magazine and restart."
+      HALT
+    ENDIF
+  ENDIF
+
+  PEN_HELD = S
+
+  PEN_PHASE = 8
+  PEN_GOTO_APPR(S)
+
+  PEN_SET_TOOL(S)
+
+  PEN_PHASE = 0
+  PEN_TARGET = -1
+
+END
+
+
+;=============================================================================
+; MOTION PRIMITIVES
+; Separated so that every entry into a slot in this file, including every
+; recovery path, uses exactly the same move at exactly the same speed.
+;=============================================================================
+
+GLOBAL DEF PEN_GOTO_APPR(S :IN)
+  DECL INT S
+  ; The magazine is bolted to the cell and taught in its own base. Switching
+  ; here, rather than at the call sites, means every entry to the magazine -
+  ; including every recovery path - lands in the same base by construction.
+  PEN_USE_BASE(PEN_MAGBASE)
+  $VEL.CP = PEN_VEL_APPROACH
+  $APO.CDIS = 1.0
+  LIN PEN_APPR[S]
+END
+
+
+GLOBAL DEF PEN_GOTO_SEAT(S :IN)
+  DECL INT S
+  ; Always via the approach pose, so the pen enters along the slot axis and
+  ; never at an angle, whatever the tool was doing beforehand.
+  PEN_USE_BASE(PEN_MAGBASE)
+  $VEL.CP = PEN_VEL_APPROACH
+  LIN PEN_APPR[S]
+  $VEL.CP = PEN_VEL_INSERT
+  LIN PEN_SEAT[S]
+END
+
+
+;=============================================================================
+; COLLET
+; PEN_DRYRUN gates every output. In a dry run these routines still take the
+; same time, so the T1 rehearsal has the same rhythm as the real thing.
+;=============================================================================
+
+GLOBAL DEF PEN_COLLET_OPEN( )
+
+  IF PEN_DRYRUN THEN
+    $LOOP_MSG[] = "DRY RUN: collet OPEN suppressed."
+    WAIT SEC 0.5
+    RETURN
+  ENDIF
+
+  $OUT[PEN_OUT_CLAMP] = TRUE
+
+  IF PEN_SENSORS_FITTED THEN
+    $TIMER_STOP[1] = TRUE
+    $TIMER[1] = 0
+    $TIMER_STOP[1] = FALSE
+    WAIT FOR ($IN[PEN_IN_OPEN] OR ($TIMER[1] > PEN_CLAMP_MS))
+    $TIMER_STOP[1] = TRUE
+    IF NOT $IN[PEN_IN_OPEN] THEN
+      $LOOP_MSG[] = "COLLET: did not reach OPEN within the timeout. Air pressure?"
+      HALT
+    ENDIF
+  ELSE
+    WAIT SEC 0.8
+  ENDIF
+
+END
+
+
+GLOBAL DEF PEN_COLLET_CLOSE( )
+
+  IF PEN_DRYRUN THEN
+    $LOOP_MSG[] = "DRY RUN: collet CLOSE suppressed."
+    WAIT SEC 0.5
+    RETURN
+  ENDIF
+
+  $OUT[PEN_OUT_CLAMP] = FALSE
+
+  IF PEN_SENSORS_FITTED THEN
+    $TIMER_STOP[1] = TRUE
+    $TIMER[1] = 0
+    $TIMER_STOP[1] = FALSE
+    WAIT FOR ($IN[PEN_IN_CLOSED] OR ($TIMER[1] > PEN_CLAMP_MS))
+    $TIMER_STOP[1] = TRUE
+    IF NOT $IN[PEN_IN_CLOSED] THEN
+      $LOOP_MSG[] = "COLLET: did not reach CLOSED within the timeout."
+      HALT
+    ENDIF
+  ELSE
+    WAIT SEC 0.8
+  ENDIF
+
+END
+
+
+;=============================================================================
+; PEN_SET_TOOL  -  the "set TOOL" half of the definition of done
+;
+; TF-08 on the board decides whether this is allowed to assume a known TCP per
+; slot or has to re-measure after every swap. Until that measurement exists,
+; this routine assumes, and says so once per swap.
+;=============================================================================
+GLOBAL DEF PEN_SET_TOOL(S :IN)
+  DECL INT S
+
+  $TOOL = TOOL_DATA[PEN_TOOLNO[S]]
+  $LOAD = LOAD_DATA[PEN_TOOLNO[S]]
+
+  ; Hand the drawing base back. A swap runs in PEN_MAGBASE; the job's targets
+  ; are in PEN_BASENO. This used to be hard-coded to BASE_DATA[1], which meant
+  ; a job set up on BASE[2] for a large sheet silently reverted to the small
+  ; worktable base after the first pen change.
+  PEN_USE_BASE(PEN_BASENO)
+
+  $LOOP_MSG[] = "TOOL set from slot table. Assumed TCP - see board item TF-08."
+
+END
+
+
+;=============================================================================
+; PEN_USE_BASE  -  switch the active base, safely
+;
+; $BASE must not be changed while a move is still in the advance run, or the
+; planned move is recomputed in the new base and the tool goes somewhere you
+; did not ask for. WAIT SEC 0 forces an advance-run stop first. Every base
+; change in this file goes through here, for the same reason every collet
+; command goes through PEN_COLLET_*.
+;=============================================================================
+GLOBAL DEF PEN_USE_BASE(B :IN)
+  DECL INT B
+
+  IF B < 1 THEN
+    $LOOP_MSG[] = "PEN_USE_BASE: base number below 1. Check PEN_BASENO / PEN_MAGBASE."
+    HALT
+  ENDIF
+
+  WAIT SEC 0
+  $BASE = BASE_DATA[B]
+
+END

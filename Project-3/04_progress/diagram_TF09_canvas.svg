@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1420 820" width="1420" height="820" font-family="Segoe UI, Arial, sans-serif">
+<style>
+  .bg    { fill:#f7f7f4; }
+  .comp  { fill:#e8eef6; stroke:#3a5a80; stroke-width:2; }
+  .slid  { fill:#fdf6e3; stroke:#b58900; stroke-width:1.4; }
+  .tog   { fill:#eaf5ea; stroke:#3f8f4f; stroke-width:1.4; }
+  .togr  { fill:#fdeaea; stroke:#a83232; stroke-width:2; }
+  .par   { fill:#f0eaf5; stroke:#6a4c93; stroke-width:1.4; }
+  .prev  { fill:#fdeaea; stroke:#a83232; stroke-width:1.4; }
+  .pan   { fill:#ffffff; stroke:#888; stroke-width:1.2; }
+  .krl   { fill:#efeae0; stroke:#7a5c2e; stroke-width:1.8; }
+  .t     { font-size:12.5px; fill:#1c1c1c; }
+  .tb    { font-size:13px; fill:#1c1c1c; font-weight:600; }
+  .th    { font-size:16px; fill:#1c1c1c; font-weight:700; }
+  .ts    { font-size:11px; fill:#555; }
+  .tw    { font-size:11.5px; fill:#7a3030; font-style:italic; }
+  .w     { stroke:#7d7d7d; stroke-width:1.3; fill:none; }
+  .note  { font-size:11.5px; fill:#444; }
+</style>
+
+<rect class="bg" x="0" y="0" width="1420" height="820"/>
+
+<text class="th" x="30" y="34">TF-09 — Pen-switching loop · Grasshopper canvas layout</text>
+<text class="tw" x="30" y="54">DIAGRAM — this is a drawing of what to connect, not a screenshot of a built definition.</text>
+
+<!-- ============ LEFT ============ -->
+<text class="tb" x="34" y="92">inputs</text>
+
+<rect class="par"  x="30" y="104" width="200" height="46" rx="4"/>
+<text class="tb"   x="40" y="122">Curve param (list)</text>
+<text class="ts"   x="40" y="138">the strokes → curves</text>
+
+<rect class="par"  x="30" y="158" width="200" height="46" rx="4"/>
+<text class="tb"   x="40" y="176">int list  →  penIds</text>
+<text class="ts"   x="40" y="192">one pen number per curve</text>
+
+<rect class="par"  x="30" y="212" width="200" height="60" rx="4"/>
+<text class="tb"   x="40" y="230">Plane  →  drawPlane</text>
+<text class="ts"   x="40" y="246">the plane of the paper</text>
+<text class="ts"   x="40" y="262">flat, tilted or vertical — all fine</text>
+
+<rect class="par"  x="30" y="280" width="200" height="60" rx="4"/>
+<text class="tb"   x="40" y="298">Plane list → slotPlanes</text>
+<text class="ts"   x="40" y="314">one plane per magazine slot</text>
+<text class="ts"   x="40" y="330">planes, not heights</text>
+
+<rect class="par"  x="30" y="348" width="200" height="46" rx="4"/>
+<text class="tb"   x="40" y="366">Plane → homePlane</text>
+<text class="ts"   x="40" y="382">start and end of the job</text>
+
+<rect class="slid" x="30" y="402" width="200" height="86" rx="4"/>
+<text class="tb"   x="40" y="420">Number Sliders — all optional</text>
+<text class="ts"   x="40" y="436">leadIn 0–50 · leadOut 0–50</text>
+<text class="ts"   x="40" y="451">hover 5–100 · pressDepth 0–10</text>
+<text class="ts"   x="40" y="466">tiltDeg · resolution · startIndex</text>
+<text class="ts"   x="40" y="481">feedDraw · feedRapid · swapSeconds</text>
+
+<rect class="tog"  x="30" y="496" width="200" height="60" rx="4"/>
+<text class="tb"   x="40" y="514">Boolean Toggles — required</text>
+<text class="ts"   x="40" y="530">optimize · groupByPen</text>
+<text class="ts"   x="40" y="546">not optional on purpose</text>
+
+<rect class="togr" x="30" y="564" width="200" height="72" rx="4"/>
+<text class="tb"   x="40" y="582">Boolean Toggle — liveRun</text>
+<text class="ts"   x="40" y="598">LEAVE IT OFF</text>
+<text class="ts"   x="40" y="613">unwired = false = dry run</text>
+<text class="ts"   x="40" y="628">the unsafe option is opt-in</text>
+
+<rect class="tog"  x="30" y="646" width="200" height="42" rx="4"/>
+<text class="tb"   x="40" y="664">selfTest toggle</text>
+<text class="ts"   x="40" y="680">orientation proof, slow</text>
+
+<rect class="slid" x="30" y="696" width="200" height="72" rx="4"/>
+<text class="tb"   x="40" y="714">Integer sliders — KUKA bases</text>
+<text class="ts"   x="40" y="730">baseIndex 1–4 · the paper</text>
+<text class="ts"   x="40" y="745">magBaseIndex 1–4 · magazine</text>
+<text class="ts"   x="40" y="760">1 = worktable · 2 = large format</text>
+
+<!-- ============ CENTRE ============ -->
+<rect class="comp" x="312" y="100" width="300" height="660" rx="6"/>
+<text class="tb"   x="328" y="122">C# Script  —  TF09</text>
+<text class="ts"   x="328" y="138">usings / body / helpers in the 3 panes</text>
+<line x1="312" y1="148" x2="612" y2="148" stroke="#3a5a80" stroke-width="1"/>
+
+<text class="t" x="326" y="172">curves</text>
+<text class="t" x="326" y="197">penIds</text>
+<text class="t" x="326" y="222">drawPlane</text>
+<text class="t" x="326" y="247">drawGeo</text>
+<text class="t" x="326" y="272">slotPlanes</text>
+<text class="t" x="326" y="297">slotTools</text>
+<text class="t" x="326" y="322">homePlane</text>
+<text class="t" x="326" y="347">leadIn</text>
+<text class="t" x="326" y="372">leadOut</text>
+<text class="t" x="326" y="397">hover</text>
+<text class="t" x="326" y="422">tiltDeg</text>
+<text class="t" x="326" y="447">resolution</text>
+<text class="t" x="326" y="472">optimize</text>
+<text class="t" x="326" y="497">groupByPen</text>
+<text class="t" x="326" y="522">startIndex</text>
+<text class="t" x="326" y="547">liveRun</text>
+<text class="t" x="326" y="572">feedDraw</text>
+<text class="t" x="326" y="597">feedRapid</text>
+<text class="t" x="326" y="622">swapSeconds</text>
+<text class="t" x="326" y="647">jobName</text>
+<text class="t" x="326" y="672">selfTest</text>
+<text class="t" x="326" y="697">pressDepth</text>
+<text class="t" x="326" y="722">baseIndex</text>
+<text class="t" x="326" y="747">magBaseIndex</text>
+
+<text class="t" x="598" y="172" text-anchor="end">out</text>
+<text class="t" x="598" y="197" text-anchor="end">Targets</text>
+<text class="t" x="598" y="222" text-anchor="end">MoveTypes</text>
+<text class="t" x="598" y="247" text-anchor="end">Flat</text>
+<text class="t" x="598" y="272" text-anchor="end">FlatMoves</text>
+<text class="t" x="598" y="297" text-anchor="end">PenSequence</text>
+<text class="t" x="598" y="322" text-anchor="end">StrokeOrder</text>
+<text class="t" x="598" y="347" text-anchor="end">OrderedCurves</text>
+<text class="t" x="598" y="372" text-anchor="end">TravelMoves</text>
+<text class="t" x="598" y="397" text-anchor="end">SwapLog</text>
+<text class="t" x="598" y="422" text-anchor="end">SwapCount</text>
+<text class="t" x="598" y="447" text-anchor="end">TravelDist</text>
+<text class="t" x="598" y="472" text-anchor="end">DrawDist</text>
+<text class="t" x="598" y="497" text-anchor="end">CycleTime</text>
+<text class="t" x="598" y="522" text-anchor="end">KRL</text>
+<text class="t" x="598" y="547" text-anchor="end">Status</text>
+<text class="t" x="598" y="572" text-anchor="end">Log</text>
+<text class="t" x="598" y="597" text-anchor="end">SelfTest</text>
+
+<text class="ts" x="328" y="700">No world Z anywhere. "Off the paper" is</text>
+<text class="ts" x="328" y="716">the paper's own normal, so a wall works</text>
+<text class="ts" x="328" y="732">exactly like a table.</text>
+
+<path class="w" d="M230 127 C 272 127, 274 168, 312 168"/>
+<path class="w" d="M230 181 C 272 181, 274 193, 312 193"/>
+<path class="w" d="M230 242 C 272 242, 274 218, 312 218"/>
+<path class="w" d="M230 310 C 272 310, 274 268, 312 268"/>
+<path class="w" d="M230 371 C 272 371, 274 318, 312 318"/>
+<path class="w" d="M230 445 C 272 445, 274 393, 312 393"/>
+<path class="w" d="M230 526 C 272 526, 274 468, 312 468"/>
+<path class="w" d="M230 600 C 272 600, 274 543, 312 543"/>
+<path class="w" d="M230 667 C 272 667, 274 668, 312 668"/>
+
+<!-- ============ RIGHT ============ -->
+<text class="tb" x="704" y="92">check on screen</text>
+
+<rect class="prev" x="700" y="104" width="256" height="46" rx="4"/>
+<text class="tb"   x="710" y="122">Custom Preview ← OrderedCurves</text>
+<text class="ts"   x="710" y="138">the strokes, already flipped</text>
+
+<rect class="prev" x="700" y="158" width="256" height="60" rx="4"/>
+<text class="tb"   x="710" y="176">Custom Preview ← TravelMoves</text>
+<text class="ts"   x="710" y="192">the air moves — this is the picture</text>
+<text class="ts"   x="710" y="208">that shows the optimiser working</text>
+
+<rect class="pan"  x="700" y="226" width="256" height="46" rx="4"/>
+<text class="tb"   x="710" y="244">Panel ← SwapLog / SwapCount</text>
+<text class="ts"   x="710" y="260">"stroke 47 : pen 0 -&gt; pen 2"</text>
+
+<rect class="pan"  x="700" y="280" width="256" height="60" rx="4"/>
+<text class="tb"   x="710" y="298">Panel ← DrawDist / TravelDist</text>
+<text class="ts"   x="710" y="314">CycleTime / Status / Log</text>
+<text class="ts"   x="710" y="330">the numbers for the report</text>
+
+<rect class="pan"  x="700" y="348" width="256" height="46" rx="4"/>
+<text class="tb"   x="710" y="366">Panel ← SelfTest</text>
+<text class="ts"   x="710" y="382">wants: RESULT: PASS</text>
+
+<path class="w" d="M612 343 C 656 343, 660 127, 700 127"/>
+<path class="w" d="M612 368 C 656 368, 660 188, 700 188"/>
+<path class="w" d="M612 393 C 656 393, 660 249, 700 249"/>
+<path class="w" d="M612 493 C 656 493, 660 310, 700 310"/>
+<path class="w" d="M612 593 C 656 593, 660 371, 700 371"/>
+
+<!-- KRL out -->
+<rect class="krl" x="700" y="424" width="256" height="86" rx="4"/>
+<text class="tb"  x="710" y="442">Panel ← KRL</text>
+<text class="ts"  x="710" y="458">right-click → Stream Contents</text>
+<text class="ts"  x="710" y="473">save as  &lt;jobName&gt;.src</text>
+<text class="ts"  x="710" y="488">header states strokes, swaps,</text>
+<text class="ts"  x="710" y="503">cycle time and dry-run state</text>
+
+<path class="w" d="M612 518 C 656 518, 660 450, 700 450"/>
+
+<rect class="krl" x="700" y="530" width="256" height="104" rx="4"/>
+<text class="tb"  x="710" y="548">→ controller</text>
+<text class="ts"  x="710" y="564">PENSWAP.src   subroutines</text>
+<text class="ts"  x="710" y="579">PENSWAP.dat   persistent state</text>
+<text class="ts"  x="710" y="594">&lt;jobName&gt;.src   the generated job</text>
+<text class="ts"  x="710" y="612">Read PENSWAP_README.md first.</text>
+<text class="ts"  x="710" y="627">Commission in T1. Nothing is proven yet.</text>
+
+<line class="w" x1="828" y1="510" x2="828" y2="530"/>
+
+<!-- simulator -->
+<rect class="comp" x="1000" y="104" width="240" height="94" rx="6"/>
+<text class="tb"   x="1012" y="124">C# Script — SIMULATOR</text>
+<text class="ts"   x="1012" y="142">targets   ← Flat</text>
+<text class="ts"   x="1012" y="158">moveTypes ← FlatMoves</text>
+<text class="ts"   x="1012" y="174">dwellSeconds ← swapSeconds</text>
+<text class="ts"   x="1012" y="190">t ← Number Slider 0.000–1.000</text>
+
+<rect class="prev" x="1000" y="212" width="240" height="60" rx="4"/>
+<text class="tb"   x="1012" y="230">Custom Preview</text>
+<text class="ts"   x="1012" y="246">Trail green · Remaining grey</text>
+<text class="ts"   x="1012" y="262">ToolBody red</text>
+
+<path class="w" d="M612 243 C 800 243, 940 138, 1000 138"/>
+<path class="w" d="M612 268 C 800 268, 940 158, 1000 158"/>
+<line class="w" x1="1120" y1="198" x2="1120" y2="212"/>
+
+<!-- PEN_ENSURE explainer -->
+<rect class="krl" x="1000" y="300" width="380" height="180" rx="6"/>
+<text class="tb"  x="1014" y="322">The one door: PEN_ENSURE(n)</text>
+<text class="ts"  x="1014" y="344">The generated job never says "park" or "acquire".</text>
+<text class="ts"  x="1014" y="360">It says which pen it needs. PEN_ENSURE decides</text>
+<text class="ts"  x="1014" y="376">whether that means nothing, a pick-up, or a park</text>
+<text class="ts"  x="1014" y="392">first — then sets $TOOL.</text>
+<text class="ts"  x="1014" y="414">One door means exactly one place in the system</text>
+<text class="ts"  x="1014" y="430">where a pen can be half out of a slot, which is</text>
+<text class="ts"  x="1014" y="446">what makes "what if it stops right now" a</text>
+<text class="ts"  x="1014" y="462">question with an answer.</text>
+
+<rect class="krl" x="1000" y="496" width="380" height="200" rx="6"/>
+<text class="tb"  x="1014" y="518">Why abort is safe</text>
+<text class="ts"  x="1014" y="540">The collet only ever changes state while the tool</text>
+<text class="ts"  x="1014" y="556">is fully home in a slot. Never in mid-air, never</text>
+<text class="ts"  x="1014" y="572">while moving, never at the approach pose.</text>
+<text class="ts"  x="1014" y="594">So at every instant the pen is fully in its slot</text>
+<text class="ts"  x="1014" y="610">or fully in the gripper. Nothing can drop it.</text>
+<text class="ts"  x="1014" y="632">PEN_PHASE (9 values) is written to the persistent</text>
+<text class="ts"  x="1014" y="648">DAT around every irreversible step, so after any</text>
+<text class="ts"  x="1014" y="664">stop the controller knows which half-finished</text>
+<text class="ts"  x="1014" y="680">action to complete. One branch per phase.</text>
+
+<text class="tw" x="30" y="784">Native Grasshopper and C# only. No Python. liveRun stays OFF until the T1 dry run has passed.</text>
+</svg>
