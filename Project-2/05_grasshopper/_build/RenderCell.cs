@@ -37,6 +37,14 @@ public static class RenderCell
     public Vector3d Approach = Vector3d.Unset;
     public string Title = "", Sub = "", Verdict = "";
     public bool Bad = false;
+
+    // ---- the pen job needs three things the hotwire one did not ----
+    //
+    // Added rather than forked so both jobs are drawn by the same code and
+    // cannot drift into looking different for reasons that are not real.
+    public List<Curve> Curves = new List<Curve>();  // the strokes, or the sheet
+    public string HeroLabel = "wire";               // what the bold line is
+    public string Legend = null;                    // null keeps the hotwire one
   }
 
   // =========================================================================
@@ -73,6 +81,7 @@ public static class RenderCell
     if (s.Tool != null) bb.Union(s.Tool.GetBoundingBox(true));
     foreach (Point3d f in s.Flange) bb.Union(f);
     foreach (Line w in s.Wires) { bb.Union(w.From); bb.Union(w.To); }
+    foreach (Curve c in s.Curves) if (c != null) bb.Union(c.GetBoundingBox(true));
 
     Point3d target = bb.Center;
     Vector3d dir = new Vector3d(-0.60, -0.68, -0.42);   // down over the shoulder
@@ -147,6 +156,23 @@ public static class RenderCell
           g.DrawLine(tp, P(s.Flange[mid]), P(s.Targets[mid].Origin));
       }
 
+      // ---- curves: the artwork and the sheet outline ----
+      //
+      // Drawn as polylines rather than through Rhino's display pipeline,
+      // because there is no viewport here. 2 mm of chord tolerance is finer
+      // than one pixel at any scale these images use.
+      using (Pen cp = new Pen(Color.FromArgb(230, 30, 30, 30), 2.2f))
+        foreach (Curve c in s.Curves)
+        {
+          if (c == null) continue;
+          Polyline pl;
+          PolylineCurve pc = c.ToPolyline(2.0, 0.02, 1.0, 0.0);
+          if (pc == null || !pc.TryGetPolyline(out pl) || pl.Count < 2) continue;
+          PointF[] q = new PointF[pl.Count];
+          for (int k = 0; k < pl.Count; k++) q[k] = P(pl[k]);
+          g.DrawLines(cp, q);
+        }
+
       // ---- wires ----
       using (Pen wp = new Pen(Color.FromArgb(90, 225, 70, 40), 1.2f))
         foreach (Line w in s.Wires) g.DrawLine(wp, P(w.From), P(w.To));
@@ -174,7 +200,7 @@ public static class RenderCell
         Line w = s.Wires[s.Wires.Count / 2];
         using (Pen wp = new Pen(Color.FromArgb(255, 225, 70, 40), 4f))
         { wp.StartCap = LineCap.Round; wp.EndCap = LineCap.Round; g.DrawLine(wp, P(w.From), P(w.To)); }
-        Label(g, P(w.To), "wire", Color.FromArgb(200, 60, 30), 12f);
+        Label(g, P(w.To), s.HeroLabel, Color.FromArgb(200, 60, 30), 12f);
       }
 
       // ---- caption ----
@@ -277,9 +303,12 @@ public static class RenderCell
     using (SolidBrush b = new SolidBrush(Color.FromArgb(30, 30, 30)))
       g.DrawString(s.Title, t, b, 24, 12);
 
+    // Wrapped in a box rather than drawn on one line. The captions explain a
+    // measurement and are long on purpose, and a single line ran under the
+    // verdict in the top right.
     using (Font t = new Font("Segoe UI", 12f))
     using (SolidBrush b = new SolidBrush(Color.FromArgb(90, 90, 90)))
-      g.DrawString(s.Sub, t, b, 24, 46);
+      g.DrawString(s.Sub, t, b, new RectangleF(24, 44, W - 430, 50));
 
     if (!string.IsNullOrEmpty(s.Verdict))
     {
@@ -292,11 +321,11 @@ public static class RenderCell
       }
     }
 
+    string legend = s.Legend ?? ("red = frame X (arm direction)   blue = frame Z (the wire)   " +
+                                 "blue dots = where the flange must be");
     using (Font t = new Font("Segoe UI", 10f, FontStyle.Italic))
     using (SolidBrush b = new SolidBrush(Color.FromArgb(150, 150, 150)))
-      g.DrawString("RENDER of the real computed geometry - not a screen capture. " +
-                   "red = frame X (arm direction)   blue = frame Z (the wire)   " +
-                   "blue dots = where the flange must be",
+      g.DrawString("RENDER of the real computed geometry - not a screen capture.  " + legend,
                    t, b, 24, H - 26);
   }
 }

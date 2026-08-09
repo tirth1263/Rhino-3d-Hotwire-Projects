@@ -35,6 +35,7 @@ public static class GhBuild
   static readonly Guid G_PlaneNorm= new Guid("cfb6b17f-ca82-4f5d-b604-d4f69f569de3");
   static readonly Guid G_Move     = new Guid("e9eb1dcf-92f6-4d4d-84ae-96222d60f56b");
   static readonly Guid G_TreeBr   = new Guid("3a710c1e-1809-4e19-8c15-82adce31cd62");
+  static readonly Guid G_Orient   = new Guid("378d0690-9da0-4dd1-ab16-1d15246e7c22"); // Geometry / Source / Target
 
   // KUKA|prc (legacy category "KUKA|prc" - NOT "PRC Preview")
   static readonly Guid G_prcCore  = new Guid("944339be-e143-491a-acab-b1ad6c53d8d6");
@@ -460,37 +461,32 @@ public static class GhBuild
 
     // ---- 2 drawPlane, and placing the artwork in the cell
     //
-    // TF-09 takes curves that are ALREADY where the paper is. drawPlane says
-    // which way is up off the paper - it is not a transform, and moving it
-    // does not drag the artwork with it.
+    // TF-09 takes curves that are ALREADY where the paper is, and drawPlane
+    // says which way is up off it. The two have to agree, so ONE thing drives
+    // both: the PENTOOL component's DrawPlane output becomes the paper's own
+    // frame AND the target of the Orient that carries the artwork onto it.
+    // They cannot drift apart.
     //
-    // So the demo is authored around the origin, the way you would draw it,
-    // and one point drives both: it moves the curves onto the paper AND it
-    // becomes the paper's origin. They cannot drift apart.
+    // Orient, not Move. The board now STANDS UP, so placing the drawing is a
+    // rotation as well as a translation - a Move would leave the strokes lying
+    // flat on the floor while the sheet they belong to stood vertical.
     //
-    // It has to be moved at all because the virtual robot stands at the world
-    // origin. Artwork left there is underneath the arm, and every target comes
-    // back unreachable - which reads like a broken toolpath and is not one.
-    GH_NumberSlider paperX = Slider(doc, "paper X", -1200, 1200, 600, 0, 60, 108);
-    GH_NumberSlider paperY = Slider(doc, "paper Y", -1200, 1200,   0, 0, 60, 140);
-    GH_NumberSlider paperZ = Slider(doc, "paper Z",  -500, 1200, 200, 0, 60, 172);
+    // The artwork has to be placed at all because the virtual robot stands at
+    // the world origin: strokes left there are underneath the arm, and every
+    // target comes back unreachable - which reads like a broken toolpath and
+    // is not one.
+    IGH_Component pt = BuildPenTool(doc, root);
 
-    IGH_Component paperPt = Comp(doc, G_ConPoint, "Construct Point", 250, 108);
-    paperPt.Params.Input[0].AddSource(paperX);
-    paperPt.Params.Input[1].AddSource(paperY);
-    paperPt.Params.Input[2].AddSource(paperZ);
+    IGH_Component src = Comp(doc, G_XYPlane, "XY Plane", 250, 200);   // world XY
+    IGH_Component ori = Comp(doc, G_Orient, "Orient", 420, 40);
+    Wire(ori, 0, pc);                       // the artwork, authored flat
+    Wire(ori, 1, src, 0);                   // Source: world XY
+    Wire(ori, 2, pt, 1);                    // Target: the board
+    Wire(cs, 0, ori, 0);
 
-    // Point -> Motion relies on Grasshopper's own point-to-vector cast.
-    IGH_Component mv = Comp(doc, G_Move, "Move", 400, 40);
-    Wire(mv, 0, pc);
-    Wire(mv, 1, paperPt, 0);
-    Wire(cs, 0, mv, 0);
+    Wire(cs, 2, pt, 1);                     // drawPlane <- the same board
 
-    IGH_Component dp = Comp(doc, G_XYPlane, "XY Plane", 400, 140);
-    Wire(dp, 0, paperPt, 0);
-    Wire(cs, 2, dp, 0);
-
-    // ---- 3 drawGeo left unwired (flat paper). Wire a surface for a curved sheet.
+    // ---- 3 drawGeo left unwired (flat sheet). Wire a surface for a curved one.
 
     // ---- 4 slotPlanes : a placeholder magazine, four slots in a row
     GH_NumberSlider slotX = Slider(doc, "slot X0",  -1000, 1000, 380, 0, 60, 204);
@@ -530,14 +526,21 @@ public static class GhBuild
     Wire(cs, 4, sp, 0);
 
     Note(doc,
-      "WHERE THE PAPER IS\r\n\r\n" +
-      "paper X/Y/Z do two jobs at once: they move the artwork into the cell " +
-      "and they set the paper's origin. One point drives both, so the drawing " +
-      "and the plane cannot drift apart.\r\n\r\n" +
-      "Using your own curves? Wire them into Move in place of the demo param. " +
-      "If they are already positioned in the cell, skip Move and wire them " +
-      "straight into curves.",
-      620, 108, 330, 170);
+      "WHERE THE ARTWORK IS\r\n\r\n" +
+      "The demo is authored FLAT around the origin, the way you would draw it " +
+      "on paper, and Orient carries it onto whatever board the PENTOOL " +
+      "component builds. The same plane feeds drawPlane, so the strokes and " +
+      "the sheet cannot drift apart - move the board and the drawing goes " +
+      "with it, standing up included.\r\n\r\n" +
+      "It has to be placed at all because the virtual robot stands at the " +
+      "world origin. Artwork left there is underneath the arm and every " +
+      "target comes back unreachable, which reads like a broken toolpath and " +
+      "is not one.\r\n\r\n" +
+      "Using your own curves? Wire them into Orient in place of the demo " +
+      "param, authored flat about the origin. If they are already positioned " +
+      "in the cell, skip Orient and wire them straight into curves - but then " +
+      "drawPlane has to match them by hand.",
+      620, 108, 340, 260);
 
     Note(doc,
       "MAGAZINE - PLACEHOLDER COORDINATES\r\n\r\n" +
@@ -549,8 +552,16 @@ public static class GhBuild
       "cell. See krl/PENSWAP_README.md.\r\n\r\n" +
       "Whatever you replace it with, keep the convention: a slot plane's Z " +
       "runs FROM the tool INTO the slot. Get that backwards and the arm is " +
-      "asked to reach the magazine from below.",
-      60, 370, 470, 190);
+      "asked to reach the magazine from below.\r\n\r\n" +
+      "THE MAGAZINE DOES NOT MOVE WITH THE BOARD, and that is correct - a " +
+      "magazine is bolted to the cell. But it does mean that if you swing the " +
+      "board round with the board X/Y sliders, you have to bring these three " +
+      "with it or the swap trips are left reaching across the cell.\r\n\r\n" +
+      "Measured: board to the LEFT at 0 / 900 is unreachable with the slots " +
+      "left here, and solves exactly as well as the front once they are put " +
+      "at the matching 90 deg image - slot X0 420, slot Y 380. Rotate (x, y) " +
+      "to (-y, x) and it comes back.",
+      60, 370, 470, 330);
 
     // ---- 5 slotTools, 6 homePlane left unwired (documented defaults)
 
@@ -559,10 +570,27 @@ public static class GhBuild
     GH_NumberSlider leadIn  = Slider(doc, "leadIn",     0,  50,   5, 1, 60, sy);        sy += 40;
     GH_NumberSlider leadOut = Slider(doc, "leadOut",    0,  50,   5, 1, 60, sy);        sy += 40;
     GH_NumberSlider hover   = Slider(doc, "hover",      5, 100,  30, 1, 60, sy);        sy += 40;
-    GH_NumberSlider tilt    = Slider(doc, "tiltDeg",  -45,  45,   0, 1, 60, sy);        sy += 40;
     GH_NumberSlider resol   = Slider(doc, "resolution", 0.1, 5, 0.5, 2, 60, sy);        sy += 50;
     Wire(cs,  7, leadIn); Wire(cs,  8, leadOut); Wire(cs, 9, hover);
-    Wire(cs, 10, tilt);   Wire(cs, 11, resol);
+    Wire(cs, 11, resol);
+
+    // tiltDeg has no slider of its own any more - it comes from PENTOOL's
+    // penLeanDeg. One component then owns the whole orientation story and can
+    // check its own advice, which matters here because the wrong lean makes
+    // the job unreachable for a reason that is invisible in the geometry.
+    Wire(cs, 10, pt, 4);
+
+    Note(doc,
+      "THE PEN LEAN COMES FROM PENTOOL\r\n\r\n" +
+      "tiltDeg is wired from the PENTOOL component's penLeanDeg, not from a " +
+      "slider here, so the component that decides how the board is hung is " +
+      "also the one that decides how far the pen leans - and can warn when " +
+      "the two do not go together.\r\n\r\n" +
+      "They do not go together at 0. A sheet standing square-on to the robot " +
+      "aims the pen straight back down the arm's own reach line, the wrist " +
+      "goes flat, and prc refuses the job even though every target is well " +
+      "inside the reach ring. 20 deg of lean is the shipped answer.",
+      280, sy - 130, 340, 210);
 
     // ---- toggles 12,13,15,20
     GH_BooleanToggle opt  = Toggle(doc, "optimize",   true,  60, sy); sy += 40;
@@ -633,12 +661,16 @@ public static class GhBuild
       1420, 410, 340, 200);
 
     // ---- prc chain, fed from Flat (output 3): the whole job in order ----
-    PrcChain(doc, cs.Params.Output[3], 1, 150,
-      "TOOL PLANE IS A GUESS\r\n\r\n" +
-      "150 mm off the flange, TOOL[1] = technical pen. Replace with the " +
-      "measured TCP before you trust the reach check.\r\n\r\n" +
-      "The hotwire lives in the FL-01 file, not here - this is the pen job.",
-      1900, 120, null, null);
+    //
+    // The TCP now comes from the PENTOOL component rather than a slider, and
+    // the tool geometry is the lab's own pen tool in flange coordinates - the
+    // same arrangement the FL-01 file uses for the hotwire.
+    PrcChain(doc, cs.Params.Output[3], 1, CellBuild.PenToolZ,
+      "TOOL[1] = THE PEN NIB\r\n\r\n" +
+      "The TCP comes from the PENTOOL component, not from a slider here, and " +
+      "the tool mesh is the lab's Pen_Tool Rev 008 rebuilt in flange " +
+      "coordinates. Nib " + CellBuild.PenToolZ + " mm off the flange face.",
+      1900, 120, pt.Params.Output[2], CellBuild.PenToolMesh());
 
     Note(doc,
       "TF-09 - PEN-SWITCHING LOOP\r\n\r\n" +
@@ -650,6 +682,165 @@ public static class GhBuild
       640, 1120, 420, 170);
 
     Save(doc, outDir, "TF09_pen_drawing");
+  }
+
+  // =========================================================================
+  //  THE PEN TOOL AND THE BOARD SWITCH
+  //
+  //  Upstream of TF-09, unlike the hotwire component which is downstream of
+  //  FL-01. The reason is in PN_body.cs: TF-09 needs a draw plane before it
+  //  can build a target, so deriving the board from TF-09's own output would
+  //  be a cycle and Grasshopper will not run one.
+  // =========================================================================
+  static IGH_Component BuildPenTool(GH_Document doc, string root)
+  {
+    string dir = Path.Combine(root, "07_pen_tool");
+
+    In[] ins = new In[] {
+      new In("toolX",       "double",  GH_ParamAccess.item, true),
+      new In("toolY",       "double",  GH_ParamAccess.item, true),
+      new In("toolZ",       "double",  GH_ParamAccess.item, true),
+      new In("toolA",       "double",  GH_ParamAccess.item, false),
+      new In("toolB",       "double",  GH_ParamAccess.item, false),
+      new In("toolC",       "double",  GH_ParamAccess.item, false),
+      new In("penAxis",     "int",     GH_ParamAccess.item, false),
+      new In("boardOrigin", "Point3d", GH_ParamAccess.item, true),
+      new In("boardW",      "double",  GH_ParamAccess.item, true),
+      new In("boardH",      "double",  GH_ParamAccess.item, true),
+      new In("boardOrient", "int",     GH_ParamAccess.item, false),
+      new In("cardinal",    "int",     GH_ParamAccess.item, false),
+      new In("leanDeg",     "double",  GH_ParamAccess.item, true),
+      new In("spinDeg",     "double",  GH_ParamAccess.item, true),
+      new In("flipBoardZ",  "bool",    GH_ParamAccess.item, true),
+      new In("zToRobot",    "bool",    GH_ParamAccess.item, true),
+      new In("robotBase",   "Plane",   GH_ParamAccess.item, true),
+      new In("reachMax",    "double",  GH_ParamAccess.item, true),
+      new In("reachMin",    "double",  GH_ParamAccess.item, true),
+      new In("grid",        "int",     GH_ParamAccess.item, true),
+      new In("penLeanDeg",  "double",  GH_ParamAccess.item, true)
+    };
+    string[] outs = new string[] {
+      "DrawPlane","ToolPlane","ToolAbc","PenLean","Board","Corners","FlangePts",
+      "PenLines","Approach","Status","Log"
+    };
+
+    IGH_Component pt = CSharp(doc, "PENTOOL",
+      ReadPane(Path.Combine(dir, "PN_usings.cs")),
+      ReadPane(Path.Combine(dir, "PN_body.cs")),
+      ReadPane(Path.Combine(dir, "PN_helpers.cs")),
+      ins, outs, 250, 620);
+
+    // ---- the four numbers from the pendant's CUSTOM TOOL dialog ----
+    float y = 620;
+    GH_NumberSlider tZ = Slider(doc, "Tool Z", 0, 600, CellBuild.PenToolZ, 1, 60, y); y += 34;
+    GH_NumberSlider tA = Slider(doc, "Tool A", -180, 180, 0, 0, 60, y); y += 34;
+    GH_NumberSlider tB = Slider(doc, "Tool B", -180, 180, 0, 0, 60, y); y += 34;
+    GH_NumberSlider tC = Slider(doc, "Tool C", -180, 180, 0, 0, 60, y); y += 34;
+    GH_NumberSlider pA = Slider(doc, "penAxis", 0, 2, 2, 0, 60, y); y += 44;
+    Wire(pt, 2, tZ); Wire(pt, 3, tA); Wire(pt, 4, tB); Wire(pt, 5, tC); Wire(pt, 6, pA);
+
+    // ---- where the sheet hangs ----
+    GH_NumberSlider bX = Slider(doc, "board X", -1600, 1600, CellBuild.BoardX, 0, 60, y); y += 34;
+    GH_NumberSlider bY = Slider(doc, "board Y", -1600, 1600, CellBuild.BoardY, 0, 60, y); y += 34;
+    GH_NumberSlider bZ = Slider(doc, "board Z",  -400, 1400, CellBuild.BoardZ, 0, 60, y); y += 34;
+    IGH_Component bp = Comp(doc, G_ConPoint, "Construct Point", 60, y); y += 60;
+    bp.Params.Input[0].AddSource(bX);
+    bp.Params.Input[1].AddSource(bY);
+    bp.Params.Input[2].AddSource(bZ);
+    Wire(pt, 7, bp, 0);
+
+    GH_NumberSlider bW = Slider(doc, "board W", 50, 900, CellBuild.BoardW, 0, 60, y); y += 34;
+    GH_NumberSlider bH = Slider(doc, "board H", 50, 900, CellBuild.BoardH, 0, 60, y); y += 44;
+    Wire(pt, 8, bW); Wire(pt, 9, bH);
+
+    // ---- THE BOARD SWITCH ----
+    // 0 VERTICAL: the sheet stands up and its own Z faces the robot. That is
+    // the arrangement the cell uses and the one the brief asked for.
+    GH_NumberSlider bO = Slider(doc, "boardOrient", 0, 3, 0, 0, 60, y); y += 34;
+    GH_NumberSlider cD = Slider(doc, "cardinal",    0, 4, 0, 0, 60, y); y += 34;
+    GH_NumberSlider lD = Slider(doc, "leanDeg",     0, 90, 45, 0, 60, y); y += 34;
+    GH_NumberSlider sD = Slider(doc, "spinDeg", -180, 180, 0, 0, 60, y); y += 34;
+    Wire(pt, 10, bO); Wire(pt, 11, cD); Wire(pt, 12, lD); Wire(pt, 13, sD);
+
+    GH_BooleanToggle fB = Toggle(doc, "flipBoardZ", false, 60, y); y += 34;
+    GH_BooleanToggle zR = Toggle(doc, "zToRobot",   true,  60, y); y += 44;
+    Wire(pt, 14, fB); Wire(pt, 15, zR);
+
+    GH_NumberSlider rX = Slider(doc, "reachMax", 200, 2000, 1101, 0, 60, y); y += 34;
+    GH_NumberSlider rN = Slider(doc, "reachMin",   0, 1000,  460, 0, 60, y); y += 34;
+    // 20, not 0. A sheet standing square-on to the robot puts the arm's own
+    // reach line straight down the pen, and the wrist has to go flat to manage
+    // it - a singular pose that prc refuses even though every target is well
+    // inside the ring. Measured band on this cell: 15..30 solves, 0..10 does
+    // not, 40 is too far the other way. Drag it to 0 and watch prc go red.
+    GH_NumberSlider pL = Slider(doc, "penLeanDeg", -45, 45, 20, 0, 60, y); y += 44;
+    Wire(pt, 17, rX); Wire(pt, 18, rN); Wire(pt, 20, pL);
+    // 16 robotBase and 19 grid left unwired - the virtual robot stands at the
+    // world origin and 5 x 5 samples is plenty for a flat sheet.
+
+    GH_Panel abc = Panel(doc, "ToolAbc", null, 620, 620, 330, 46, null);
+    GH_Panel st  = Panel(doc, "Status",  null, 620, 680, 330, 60, null);
+    GH_Panel lg  = Panel(doc, "Log",     null, 620, 755, 330, 300, null);
+    abc.AddSource(pt.Params.Output[3]);
+    st .AddSource(pt.Params.Output[10]);
+    lg .AddSource(pt.Params.Output[11]);
+
+    Note(doc,
+      "THE BOARD SWITCH  -  Z FACES THE ROBOT\r\n\r\n" +
+      "boardOrient  0 VERTICAL  1 FLAT  2 TILTED  3 AWAY\r\n" +
+      "cardinal     0 AUTO  1 +X  2 -X  3 +Y  4 -Y\r\n\r\n" +
+      "With a hotwire the switch acted on the TOOL, because a wire is a line " +
+      "and how you lay it decides whether it cuts. A pen draws with a POINT, " +
+      "so the tool has only one sensible attitude - straight into the paper - " +
+      "and the interesting question moves to the WORK.\r\n\r\n" +
+      "  0 VERTICAL  the sheet stands on an easel and faces the arm. Its own " +
+      "blue Z runs back at the robot.  <-- shipped\r\n" +
+      "  1 FLAT      lying on a table. Its normal points at the ceiling, so " +
+      "nothing about it faces the robot and zToRobot says so.\r\n" +
+      "  2 TILTED    a drafting table. leanDeg 0 is FLAT, 90 is VERTICAL - " +
+      "the continuum the other two are the ends of.\r\n" +
+      "  3 AWAY      the sheet turned round. Kept so you can see wrong.\r\n\r\n" +
+      "MEASURED at the shipped pen lean of 20 deg: only 0 and 3 solve. 1 and " +
+      "2 want a different lean, because the lean and the board attitude are " +
+      "one question and not two - which is exactly why they live on the same " +
+      "component. Change boardOrient and expect to re-tune penLeanDeg.\r\n\r\n" +
+      "cardinal AUTO reads where the board sits: in front is +X, behind is " +
+      "-X, either side is +/-Y. Drag board X/Y/Z and the sheet turns to keep " +
+      "facing the arm.\r\n\r\n" +
+      "WHICH Z IS WHICH, because this is the thing that confuses everyone:\r\n" +
+      "  the BOARD's Z points OUT of the sheet, back at the robot\r\n" +
+      "  the TARGET's Z points INTO the sheet, down the pen\r\n" +
+      "They are opposite by definition, and they have to be - the pen reaches " +
+      CellBuild.PenToolZ + " mm ahead of the wrist, so the flange has to sit " +
+      "between the robot and the paper or the arm cannot reach past its own " +
+      "tool. Preview FlangePts to see exactly that.\r\n\r\n" +
+      "AND THE ONE THAT ACTUALLY BIT: penLeanDeg.\r\n" +
+      "Standing the sheet up square-on aims the pen back down the arm's reach " +
+      "line, so the wrist goes flat and the pose is singular - prc refuses the " +
+      "whole job with every target well inside the ring. Measured here:\r\n" +
+      "   lean 0, 5, 10        UNREACHABLE\r\n" +
+      "   lean 15, 20, 25, 30  clean\r\n" +
+      "   lean 40              UNREACHABLE, too far the other way\r\n" +
+      "Drag penLeanDeg to 0 and watch prc go red. That is the switch proving " +
+      "the point rather than the note asking you to take it on trust.",
+      420, 620, 340, 620);
+
+    Note(doc,
+      "THE PEN TOOL\r\n\r\n" +
+      "Tool Z / A / B / C are the four numbers from the pendant's CUSTOM TOOL " +
+      "dialog. Type what the pendant says and the simulation matches the cell.\r\n\r\n" +
+      "The defaults are the real tool, measured in the lab's own " +
+      "Pen_Tool Rev 008.3dm: nib " + CellBuild.PenToolZ + " mm off the flange " +
+      "face, and A / B / C all ZERO because a pen runs straight out along the " +
+      "flange axis and has nothing to twist. That is the whole difference from " +
+      "the hotwire, whose crossbar needs A -90 / B -90 / C 0 to describe it.\r\n\r\n" +
+      "Rev 008 is a bench layout rather than a flange-referenced model, so the " +
+      "tool is REBUILT from its dimensions instead of lifted whole. Which face " +
+      "is the flange face is a definition, not a measurement - see " +
+      "07_pen_tool/PN_README.md.",
+      420, 1110, 340, 260);
+
+    return pt;
   }
 
   // =========================================================================

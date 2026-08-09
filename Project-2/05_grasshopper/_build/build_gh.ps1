@@ -40,8 +40,11 @@ try {
     [Rhino.PlugIns.PlugIn]::LoadPlugIn([Guid]'B45A29B1-4343-4035-989E-044E8580D9CF') | Out-Null
     ([Rhino.RhinoApp]::GetPlugInObject('Grasshopper')).RunHeadless() | Out-Null
 
-    Write-Host '################ RHINO CELL MODEL'
+    Write-Host '################ RHINO CELL MODEL - hotwire / FL-01'
     Write-Host ([CellBuild]::Run($root, $out))
+
+    Write-Host '################ RHINO CELL MODEL - pen tool / TF-09'
+    Write-Host ([CellBuild]::RunTf09($root, $out))
 
     Write-Host '################ BUILD'
     Write-Host ([GhBuild]::Run($root, $out))

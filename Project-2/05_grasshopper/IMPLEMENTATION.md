@@ -7,6 +7,16 @@ through it, and why each one is built the way it is.
 You do not need this to run the tools. You need it to change them, to defend a
 number to somebody, or to work out where something went wrong.
 
+> **The tool-and-orientation story for each job has its own document**, because
+> both turned out to be longer and more surprising than a section here would
+> hold:
+>
+> - the hotwire on FL-01 — [`HOTWIRE_ORIENTATION.md`](HOTWIRE_ORIENTATION.md)
+> - the pen tool on TF-09 — [`TF09_ORIENTATION.md`](TF09_ORIENTATION.md)
+>
+> Each ends with the numbers worth carrying into the next project, and each one
+> is reproducible: `_build\render_steps.ps1` and `_build\verify_tf09.ps1`.
+
 ### Contents
 
 1. [The shape of the whole thing](#1-the-shape-of-the-whole-thing)
@@ -34,11 +44,15 @@ Four pieces. Three run in Grasshopper, one runs on the robot.
                                                                       ▼
                                                               KUKA|prc writes .src
 
-                    ┌───────────────────────────────────────┐
-   curves ─────────▶│ TF-09   pen-switching drawing job     │────┬─▶ KRL  (the .src)
-   + a paper plane  └───────────────────────────────────────┘    │
-   + slot planes                                                 └─▶ Targets → prc
-                                                                      (reach check only)
+   ┌──────────────┐ ┌───────────────────────────────────────┐
+   │ PENTOOL      │▶│ TF-09   pen-switching drawing job     │────┬─▶ KRL  (the .src)
+   │ board switch │ └───────────────────────────────────────┘    │
+   └──────────────┘   ▲              ▲                           └─▶ Targets → prc
+     DrawPlane ───────┘              │                               (reach check only)
+     PenLean ────────────────────────┘
+     ToolPlane ──────────────────────────────────────────────────▶ prc Custom Tool
+                                     ▲
+   curves (authored flat) ──▶ Orient ┘        slot planes ────────┘
                     ┌───────────────────────────────────────┐
    planes  ────────▶│ SIM     playback + timing             │────▶ pictures, cycle time
                     └───────────────────────────────────────┘
@@ -618,3 +632,4 @@ are mirrored in `TF09_body.cs` with a comment pointing back.
 | Every TF-09 input in detail | `../02_TF09_pen_switching/TF09_README.md` |
 | Every FL-01 input in detail | `../01_FL01_mesh_to_planes/FL01_README.md` |
 | **Before moving the robot** | `../02_TF09_pen_switching/krl/PENSWAP_README.md` |
+ 

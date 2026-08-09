@@ -72,6 +72,42 @@ public static class CellBuild
   // be out in front of it - and not too far: the flange only reaches 1101 mm.
   public const double PartX = 1273.0, PartY = -20.0, PartZ = 302.0;
 
+  // ---- THE PEN TOOL, measured off Pen_Tool Rev 008.3dm ------------------
+  //
+  // Rev 008 is a WORKSHOP LAYOUT, not a flange-referenced model: it is 1.95 m
+  // across and carries 2D dimension drawings, print nests and an 8020 test
+  // rig alongside the assembly. So unlike the hotwire, whose file could be
+  // used verbatim, the pen tool is rebuilt here from its own dimensions.
+  //
+  // Every number below was read off that file. The one thing that is a
+  // DEFINITION rather than a measurement is where the flange face sits, and
+  // which way the pen points from it - Rev 008 does not record either, because
+  // a bench layout has no flange. The definition taken is the simple one: the
+  // mounting face IS the flange face, and the pen runs straight out along the
+  // flange axis. See 07_pen_tool/PN_README.md.
+  public const double PlateSide = 100.0;   // mount plate, 100 across  (X -171.1..-71.2)
+  public const double PlateThk  = 15.0;    //             15.1 thick   (Y  16.2..31.3)
+  public const double BodySide  = 62.5;    // spring body              (Y -31.2..31.3)
+  public const double BodyLen   = 50.0;    //                          (Z -87.5..-37.5)
+  public const double CarSide   = 25.0;    // pen carriage, 25.1 sq    (X -133.7..-108.6)
+  public const double CarLen    = 69.0;    //                          (Z -119.6..-50.6)
+  public const double SpringDia = 15.5;    // spring                   (X -128.9..-113.4)
+  public const double SpringLen = 20.0;    //                          (Z  -84.6..-64.6)
+  public const double PenDia    = 10.5;    // the pen barrel           (X -126.4..-115.9)
+  public const double PenLen    = 121.4;   //                          (Z -152.8..-31.4)
+
+  // The nib, and therefore the CUSTOM TOOL dialog's Tool Z. It is the
+  // assembly's own extent along its axis: 227.8 mm from the mounting face.
+  // A/B/C are all zero - a pen has nothing to twist, so the tool frame is the
+  // flange frame moved along its own Z.
+  public const double PenToolZ = 227.8;
+
+  // Where the sheet hangs, matching the board sliders on the TF-09 canvas.
+  // Standing upright and facing the robot, which is the whole point of the
+  // switch - see 07_pen_tool/PN_README.md.
+  public const double BoardX = 900.0, BoardY = 0.0, BoardZ = 450.0;
+  public const double BoardW = 280.0, BoardH = 210.0;
+
   // Set by Run(). FullTool() is public and GhBuild may call it first, so it
   // falls back to walking up from this assembly's own folder.
   static string _root;
@@ -331,21 +367,27 @@ public static class CellBuild
     List<int> pens = new List<int>();
     List<Curve> cs = GhBuild.DemoDrawing(pens);
 
-    // GhBuild authors the drawing round the origin and the canvas moves it onto
-    // the paper. Same move here, same numbers, so the model matches the .gh.
-    Vector3d mv = new Vector3d(600, 0, 200);
+    // GhBuild authors the drawing round the origin and the canvas ORIENTS it
+    // onto the board - it is no longer a translation, because the board now
+    // stands up. Same transform here, same numbers, so the model matches the
+    // .gh rather than merely resembling it.
+    Plane paper = BoardPlane();
+    Transform onBoard = Transform.PlaneToPlane(Plane.WorldXY, paper);
     for (int i = 0; i < cs.Count; i++)
     {
       Curve c = cs[i].DuplicateCurve();
-      c.Translate(mv);
+      c.Transform(onBoard);
       doc.Objects.AddCurve(c, At(lDraw, "stroke_" + i + "_pen" + pens[i]));
     }
 
-    Plane paper = new Plane(new Point3d(600, 0, 200), Vector3d.XAxis, Vector3d.YAxis);
-    Rectangle3d r = new Rectangle3d(paper, new Interval(-140, 140), new Interval(-105, 105));
-    doc.Objects.AddCurve(r.ToNurbsCurve(), At(lPaper, "PAPER_A4ish"));
-    Frame(doc, lPaper, paper, "drawPlane", 70.0);
+    Rectangle3d r = new Rectangle3d(paper,
+      new Interval(-BoardW * 0.5, BoardW * 0.5),
+      new Interval(-BoardH * 0.5, BoardH * 0.5));
+    doc.Objects.AddCurve(r.ToNurbsCurve(), At(lPaper, "SHEET_standing_vertical"));
+    Frame(doc, lPaper, paper, "drawPlane_Z_FACES_THE_ROBOT", 90.0);
     L("drawing: " + cs.Count + " strokes, pens " + string.Join(",", pens.ConvertAll(p => p.ToString()).ToArray()));
+    L("         sheet stands vertical at " + Fmt(paper.Origin) + ", normal " +
+      Fmt(paper.ZAxis) + " - back towards the robot");
   }
 
   static void Magazine(File3dm doc, int layer)
@@ -362,6 +404,217 @@ public static class CellBuild
                            At(layer, "slot_" + i + "_mouth"));
     }
     L("magazine: 4 placeholder slots at Y -420, Z 150, 80 mm pitch");
+  }
+
+  // =========================================================================
+  //  THE PEN TOOL
+  //
+  //  Built in FLANGE COORDINATES - flange face at the origin, tool reaching
+  //  out along +Z - which is the frame KUKA|prc's "Custom Tool: Plane" wants
+  //  for its geometry input, and the same convention the hotwire model already
+  //  uses. Stack, bottom to top:
+  //
+  //     0 .. 15     mount plate       100 x 100 x 15
+  //    15 .. 65     spring body        62.5 sq, 50 long
+  //    65 .. 134    pen carriage       25 sq, 69 long
+  //    86 .. 106    spring             dia 15.5, 20 mm of travel
+  //   106.4 .. 227.8  the pen          dia 10.5, 121.4 long
+  //
+  //  The last two lines are what makes the stack believable rather than
+  //  merely plausible: the pen is 121.4 mm long and its nib is 227.8 mm out,
+  //  so its top end lands at 106.4 - inside the carriage, which spans
+  //  65 to 134. The measurements agree with each other.
+  // =========================================================================
+  static Mesh _pen;
+
+  public static Mesh PenToolMesh()
+  {
+    if (_pen != null) return _pen;
+
+    Mesh m = new Mesh();
+    m.Append(BoxMesh(PlateSide, PlateSide, 0.0, PlateThk));
+    m.Append(BoxMesh(BodySide, BodySide, PlateThk, PlateThk + BodyLen));
+    m.Append(BoxMesh(CarSide, CarSide, PlateThk + BodyLen, PlateThk + BodyLen + CarLen));
+
+    double penTop = PenToolZ - PenLen;                       // 106.4
+    m.Append(Cyl(SpringDia * 0.5, penTop - SpringLen, penTop, 12));
+    m.Append(Cyl(PenDia * 0.5, penTop, PenToolZ, 16));
+
+    m.Vertices.CombineIdentical(true, true);
+    m.Normals.ComputeNormals();
+    m.Compact();
+
+    L("pen tool: rebuilt from Pen_Tool Rev 008 dimensions - " + m.Faces.Count +
+      " faces, nib at Z " + PenToolZ + " in flange coordinates");
+    _pen = m;
+    return _pen;
+  }
+
+  /// A box centred on the tool axis, from z0 to z1.
+  static Mesh BoxMesh(double sx, double sy, double z0, double z1)
+  {
+    Box b = new Box(Plane.WorldXY,
+                    new Interval(-sx * 0.5, sx * 0.5),
+                    new Interval(-sy * 0.5, sy * 0.5),
+                    new Interval(z0, z1));
+    return Mesh.CreateFromBox(b, 1, 1, 1);
+  }
+
+  /// A cylinder on the tool axis, from z0 to z1.
+  static Mesh Cyl(double r, double z0, double z1, int sides)
+  {
+    Cylinder c = new Cylinder(new Circle(new Plane(new Point3d(0, 0, z0), Vector3d.ZAxis), r),
+                              z1 - z0);
+    Mesh m = Mesh.CreateFromCylinder(c, 1, sides);
+    return m ?? new Mesh();
+  }
+
+  // =========================================================================
+  //  THE TF-09 CELL
+  //
+  //  A second .3dm, for the pen job, written the same way as the hotwire one.
+  //  Separate rather than merged because the two jobs put DIFFERENT tools on
+  //  the same flange, and a single file showing both would be showing a robot
+  //  that cannot exist.
+  // =========================================================================
+  public static string RunTf09(string root, string outDir)
+  {
+    _log = new StringBuilder();
+    Directory.CreateDirectory(outDir);
+    _root = root;
+
+    File3dm doc = new File3dm();
+    doc.Settings.ModelUnitSystem = UnitSystem.Millimeters;
+    doc.Settings.ModelAbsoluteTolerance = 0.001;
+
+    int lFlange = AddLayer(doc, "01_Flange_and_Robot_Base", Color.DimGray);
+    int lTool   = AddLayer(doc, "02_Pen_Tool_FLANGE_COORDS", Color.SteelBlue);
+    int lTcp    = AddLayer(doc, "03_TCP_Frame_TOOL1", Color.Magenta);
+    int lBoard  = AddLayer(doc, "04_Board_STANDING_VERTICAL", Color.Gainsboro);
+    int lDraw   = AddLayer(doc, "05_Artwork_on_the_board", Color.Black);
+    int lPose   = AddLayer(doc, "06_Pen_in_place_on_the_board", Color.DarkOrange);
+    int lMag    = AddLayer(doc, "07_Pen_Magazine", Color.SaddleBrown);
+    int lReach  = AddLayer(doc, "08_Flange_positions", Color.MediumBlue);
+
+    // ---- the tool, in flange coordinates ----
+    doc.Objects.AddMesh(PenToolMesh(), At(lTool, "PenTool_Rev008_flange_coords"));
+    FlangeMarkers(doc, lFlange);
+
+    Plane tcp = AbcToPlane(new Point3d(0, 0, PenToolZ), 0, 0, 0);
+    Frame(doc, lTcp, tcp, "TOOL1_pen_nib", 70.0);
+
+    // ---- the board, standing vertical and facing the robot ----
+    //
+    // Its normal is -X: the board is out in front at X 900, so -X runs back at
+    // the arm. THIS is the blue Z that should face the robot. The pen's own Z
+    // is the opposite one, because the pen has to go INTO the paper.
+    Plane board = BoardPlane();
+    Rectangle3d rect = new Rectangle3d(board,
+      new Interval(-BoardW * 0.5, BoardW * 0.5),
+      new Interval(-BoardH * 0.5, BoardH * 0.5));
+    doc.Objects.AddCurve(rect.ToNurbsCurve(), At(lBoard, "SHEET_" + BoardW + "x" + BoardH));
+    Frame(doc, lBoard, board, "drawPlane_Z_FACES_THE_ROBOT", 120.0);
+    doc.Objects.AddTextDot(
+      new TextDot("drawPlane Z -> robot", board.Origin + board.ZAxis * 130.0), At(lBoard, null));
+
+    // an easel, so it is obvious the sheet is standing and not floating
+    Easel(doc, lBoard, board);
+
+    // ---- the artwork, standing up with the board ----
+    //
+    // Authored in world XY around the origin, exactly as GhBuild authors it,
+    // then oriented onto the board - the same transform the Orient component
+    // applies on the canvas. Same curves, same move, so the model describes
+    // the .gh rather than merely resembling it.
+    List<int> pens = new List<int>();
+    List<Curve> cs = GhBuild.DemoDrawing(pens);
+    Transform onBoard = Transform.PlaneToPlane(Plane.WorldXY, board);
+    List<Curve> placed = new List<Curve>();
+    for (int i = 0; i < cs.Count; i++)
+    {
+      Curve q = cs[i].DuplicateCurve();
+      q.Transform(onBoard);
+      placed.Add(q);
+      doc.Objects.AddCurve(q, At(lDraw, "stroke_" + i + "_pen" + pens[i]));
+    }
+
+    // ---- the tool carried onto one real drawing target ----
+    //
+    // The target frame is TF-09's own convention: Z runs down the pen, INTO
+    // the paper, so it is the board's normal reversed. Mapping the tool plane
+    // onto it is exactly the transform the robot applies.
+    Point3d nib = placed[0].PointAtStart;
+    Plane target = new Plane(nib, board.XAxis, -board.YAxis);
+    Mesh posed = PenToolMesh().DuplicateMesh();
+    posed.Transform(Transform.PlaneToPlane(tcp, target));
+    doc.Objects.AddMesh(posed, At(lPose, "pen_tool_drawing_the_first_stroke"));
+    Frame(doc, lPose, target, "target_Z_INTO_the_paper", 60.0);
+
+    Point3d flange = target.Origin - target.ZAxis * PenToolZ;
+    doc.Objects.AddCurve(new LineCurve(flange, nib), At(lPose, "flange_to_nib"));
+    doc.Objects.AddTextDot(new TextDot("FLANGE here", flange), At(lPose, null));
+
+    // ---- where the wrist has to be, over the whole sheet ----
+    double near = double.MaxValue, far = 0.0;
+    for (int i = 0; i < 5; i++)
+      for (int j = 0; j < 5; j++)
+      {
+        Point3d p = board.PointAt(-BoardW * 0.5 + BoardW * i / 4.0,
+                                  -BoardH * 0.5 + BoardH * j / 4.0);
+        Point3d f = p + board.ZAxis * PenToolZ;      // -targetZ == +boardZ
+        doc.Objects.AddPoint(f, At(lReach, null));
+        double d = f.DistanceTo(Point3d.Origin);
+        if (d < near) near = d;
+        if (d > far) far = d;
+      }
+
+    Magazine(doc, lMag);
+
+    string path = Path.Combine(outDir, "TirthWork_TF09_Cell.3dm");
+    string tmp  = Path.Combine(Path.GetTempPath(), "TirthWork_TF09_Cell.3dm");
+    if (!doc.Write(tmp, new File3dmWriteOptions())) throw new Exception("could not write " + tmp);
+    long n = new FileInfo(tmp).Length;
+    if (n < 5000) throw new Exception("suspiciously small .3dm: " + n + " bytes");
+    File.Copy(tmp, path, true);
+    if (new FileInfo(path).Length != n) throw new Exception("copy landed short");
+    File.Delete(tmp);
+
+    L("board: " + BoardW + " x " + BoardH + " standing vertical at " +
+      Fmt(board.Origin) + ", normal " + Fmt(board.ZAxis) + " - towards the robot");
+    L("reach: flange " + near.ToString("0") + " .. " + far.ToString("0") +
+      " mm over the sheet   (working ring 460 .. 1101)" +
+      (near >= 460 && far <= 1101 ? "   OK" : "   *** OUT OF THE RING ***"));
+    L("");
+    L("wrote " + Path.GetFileName(path) + "  (" + n + " bytes, " +
+      doc.Objects.Count + " objects, " + doc.AllLayers.Count + " layers)");
+    return _log.ToString();
+  }
+
+  /// The board's plane, shared by the model and the render so the two cannot
+  /// disagree. Matches PenTool.BuildBoard's mode 0 exactly: Z out of the sheet
+  /// and back at the robot, Y up the sheet, X across it.
+  public static Plane BoardPlane()
+  {
+    Vector3d card = Vector3d.XAxis;                  // board is in front
+    Vector3d z = -card;                              // normal faces the robot
+    Vector3d x = Vector3d.CrossProduct(Vector3d.ZAxis, z);
+    x.Unitize();
+    Vector3d y = Vector3d.CrossProduct(z, x);
+    return new Plane(new Point3d(BoardX, BoardY, BoardZ), x, y);
+  }
+
+  /// A frame under the sheet. Not a machine part - it is there so that a
+  /// vertical board reads as standing on the floor rather than hanging in
+  /// space, which is otherwise genuinely hard to see in a wireframe.
+  static void Easel(File3dm doc, int layer, Plane board)
+  {
+    Point3d bl = board.PointAt(-BoardW * 0.5, -BoardH * 0.5);
+    Point3d br = board.PointAt(BoardW * 0.5, -BoardH * 0.5);
+    Point3d fl = new Point3d(bl.X, bl.Y, 0.0);
+    Point3d fr = new Point3d(br.X, br.Y, 0.0);
+    doc.Objects.AddCurve(new LineCurve(bl, fl), At(layer, "easel_leg_L"));
+    doc.Objects.AddCurve(new LineCurve(br, fr), At(layer, "easel_leg_R"));
+    doc.Objects.AddCurve(new LineCurve(fl, fr), At(layer, "easel_foot"));
   }
 
   // =========================================================================
